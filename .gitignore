@@ -32,8 +32,9 @@ cert/
 # logs
 logs/
 
-#
+# example project
 WindowsFormExample/
+CPPConsoleExample/
 
 # Project build
 main

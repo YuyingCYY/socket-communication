@@ -109,8 +109,8 @@ func FreeBinFileInfo(info C.BinFileInfo) {
 	if info.fileContent != nil {
 		C.free(unsafe.Pointer(info.fileContent))
 	}
-	if info.error != nil {
-		C.free(unsafe.Pointer(info.error))
+	if info.errorMsg != nil {
+		C.free(unsafe.Pointer(info.errorMsg))
 	}
 }
 
