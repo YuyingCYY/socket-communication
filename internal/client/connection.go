@@ -14,7 +14,7 @@ var (
 	serverAddr = "nenweb.supreme.com.tw:8080"
 )
 
-// 初始化連接
+// InitConnection 初始化連接
 func InitConnection() error {
 	var err error
 	connOnce.Do(func() {
@@ -27,7 +27,7 @@ func InitConnection() error {
 	return err
 }
 
-// 斷開連接
+// CloseConnection 斷開連接
 func CloseConnection() {
 	if conn != nil {
 		conn.Close()
@@ -35,7 +35,7 @@ func CloseConnection() {
 	}
 }
 
-// 傳送請求
+// SendRequest 傳送請求
 func SendRequest(req interface{}) (*json.Decoder, error) {
 	if conn == nil {
 		if err := InitConnection(); err != nil {

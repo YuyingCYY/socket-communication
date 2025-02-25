@@ -5,7 +5,7 @@ type MainAppResponse struct {
 	TimeStampClient string       `json:"timeStampClient"`
 	TimeStampServer string       `json:"timeStampServer"`
 	ServerVersion   string       `json:"serverVersion"`
-	ReplyStatus     string       `json:"replyStauts"`
+	ReplyStatus     string       `json:"replyStatus"`
 	MsgValidateCode string       `json:"msgValidateCode"`
 	ReplyContent    ReplyContent `json:"replyContent"`
 }

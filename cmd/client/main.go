@@ -10,7 +10,7 @@ typedef struct {
 	long fileSize;
 	char* fileContent;
 	size_t fileContentSize;
-	char* error;
+	char* errorMsg;
 } BinFileInfo;
 
 typedef struct {
@@ -28,7 +28,7 @@ typedef struct {
 	char* replyStauts;
 	char* msgValidateCode;
 	ReplyContent replyContent;
-	char* error;
+	char* errorMsg;
 } MainAppInfo;
 
 */
@@ -78,14 +78,14 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 	decoder, err := client.SendRequest(request)
 	if err != nil {
 		return C.BinFileInfo{
-			error: C.CString(err.Error()),
+			errorMsg: C.CString(err.Error()),
 		}
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
 		return C.BinFileInfo{
-			error: C.CString(err.Error()),
+			errorMsg: C.CString(err.Error()),
 		}
 	}
 
@@ -127,14 +127,14 @@ func GetMainAppInfo(askId, productSeries, applicableProject, customizeId *C.char
 	decoder, err := client.SendRequest(request)
 	if err != nil {
 		return C.MainAppInfo{
-			error: C.CString(err.Error()),
+			errorMsg: C.CString(err.Error()),
 		}
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
 		return C.MainAppInfo{
-			error: C.CString(err.Error()),
+			errorMsg: C.CString(err.Error()),
 		}
 	}
 

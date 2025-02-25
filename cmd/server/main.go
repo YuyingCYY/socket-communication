@@ -27,16 +27,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	config := &tls.Config{
+	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 	}
 
 	// 啟動服務器
-	listener, err := tls.Listen("tcp", cfg.ServerPort, config)
+	listener, err := tls.Listen("tcp", cfg.ServerPort, tlsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer listener.Close()
+	defer func(listener net.Listener) {
+		err := listener.Close()
+		if err != nil {
+			log.Printf("Error closing listener: %v", err)
+		}
+	}(listener)
 
 	log.Printf("Server started on %s", cfg.ServerPort)
 
@@ -52,7 +57,12 @@ func main() {
 
 // 處理客戶端連接及請求
 func handleConnection(conn net.Conn, basePath string) {
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		err := conn.Close()
+		if err != nil {
+			log.Printf("Error closing connection: %v", err)
+		}
+	}(conn)
 	log.Printf("New connection from %s", conn.RemoteAddr())
 
 	decoder := json.NewDecoder(conn)
