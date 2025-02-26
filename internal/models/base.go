@@ -5,7 +5,7 @@ type Request struct {
 	AskId             string `json:"askId"`
 	ProductSeries     string `json:"productSeries"`
 	ApplicableProject string `json:"applicableProject"`
-	CustomizeId       string `json:"customized"`
+	CustomizeId       string `json:"customizeId"`
 	IsGetBinFile      bool   `json:"isGetBinFile"`
 }
 

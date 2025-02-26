@@ -43,7 +43,7 @@ import (
 
 //export InitConnection
 func InitConnection() bool {
-	err := client.InitConnection()
+	err := client.GetClient().InitConnection()
 	return err == nil
 }
 
@@ -52,7 +52,7 @@ func CloseConnection() *C.char {
 	request := models.Request{
 		Command: "disconnect",
 	}
-	_, err := client.SendRequest(request)
+	_, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		response := models.Response{
 			Error: err.Error(),
@@ -61,8 +61,15 @@ func CloseConnection() *C.char {
 		return C.CString(string(jsonResponse))
 	}
 
+	if err := client.GetClient().CloseConnection(); err != nil {
+		response := models.Response{
+			Error: err.Error(),
+		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
+	}
+
 	return C.CString("disconnect")
-	// client.CloseConnection()
 }
 
 //export GetBinFileInfo
@@ -75,7 +82,7 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 		IsGetBinFile:      true,
 	}
 
-	decoder, err := client.SendRequest(request)
+	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.BinFileInfo{
 			errorMsg: C.CString(err.Error()),
@@ -124,7 +131,7 @@ func GetMainAppInfo(askId, productSeries, applicableProject, customizeId *C.char
 		IsGetBinFile:      false,
 	}
 
-	decoder, err := client.SendRequest(request)
+	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.MainAppInfo{
 			errorMsg: C.CString(err.Error()),
