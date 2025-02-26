@@ -79,7 +79,7 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 		path = filepath.Join(path, "customize", req.CustomizeId)
 	}
 
-	log.Printf("Searching for .bin file in: %s", path)
+	log.Printf("Searching for .json file in: %s", path)
 
 	// 搜尋 .json 文件
 	var jsonFile string

@@ -2,8 +2,10 @@ package client
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 )
 
@@ -18,9 +20,23 @@ var (
 func InitConnection() error {
 	var err error
 	connOnce.Do(func() {
-		config := &tls.Config{
-			InsecureSkipVerify: true, // 在生產環境中應設置為 false
+		// 加載 CA 證書
+		caCert, err := os.ReadFile("server.crt")
+		if err != nil {
+			return
 		}
+
+		// 創建 CA 證書池
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+
+		// 配置 TLS
+		config := &tls.Config{
+			RootCAs: caCertPool, // 設置 CA 證書池
+			// InsecureSkipVerify: true, // 在生產環境中應設置為 false
+		}
+
+		// 建立 TLS 連接
 		conn, err = tls.Dial("tcp", serverAddr, config)
 	})
 
