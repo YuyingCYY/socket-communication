@@ -127,15 +127,15 @@ if "%1"=="help" (
     goto :eof
 
 :Help
-    echo Make commands:
-    echo make all        - 清理、安裝依賴、生成證書、建構並測試
-    echo make server     - 建構服務器
-    echo make client     - 建構客戶端
-    echo make clean      - 清理建構檔案
-    echo make test       - 執行測試
-    echo make deps       - 安裝依賴
-    echo make cert       - 生成 SSL 證書
-    echo make run-server - 建構並執行服務器
+    echo commands:
+    echo all        - 清理、安裝依賴、生成證書、建構並測試
+    echo server     - 建構服務器
+    echo client     - 建構客戶端
+    echo clean      - 清理建構檔案
+    echo test       - 執行測試
+    echo deps       - 安裝依賴
+    echo cert       - 生成 SSL 證書
+    echo run-server - 建構並執行服務器
     goto :eof
 
 endlocal
