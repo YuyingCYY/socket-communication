@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/socket-communication/internal/models"
 )
@@ -125,8 +127,8 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 
 	mainAppResponse := models.MainAppResponse{
 		AskReplyId:      "MainApp",
-		TimeStampClient: "client",
-		TimeStampServer: "server",
+		TimeStampClient: req.TimeStampClient,
+		TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
 		ServerVersion:   "1.0.0",
 		ReplyStatus:     "success",
 		MsgValidateCode: "Msg",

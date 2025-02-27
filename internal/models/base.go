@@ -2,6 +2,7 @@ package models
 
 type Request struct {
 	Command           string `json:"command"`
+	TimeStampClient   string `json:"timeStampClient"`
 	AskId             string `json:"askId"`
 	ProductSeries     string `json:"productSeries"`
 	ApplicableProject string `json:"applicableProject"`

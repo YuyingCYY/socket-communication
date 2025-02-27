@@ -35,6 +35,8 @@ typedef struct {
 import "C"
 import (
 	"encoding/json"
+	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/socket-communication/internal/client"
@@ -127,7 +129,9 @@ func FreeBinFileInfo(info C.BinFileInfo) {
 
 //export GetMainAppInfo
 func GetMainAppInfo(askId, productSeries, applicableProject, customizeId *C.char) C.MainAppInfo {
+	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
 	request := models.Request{
+		TimeStampClient:   timeUnix,
 		AskId:             C.GoString(askId),
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
