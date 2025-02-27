@@ -42,9 +42,13 @@ import (
 )
 
 //export InitConnection
-func InitConnection() bool {
+func InitConnection() *C.char {
 	err := client.GetClient().InitConnection()
-	return err == nil
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	return C.CString("Initialize successfully")
 }
 
 //export CloseConnection
