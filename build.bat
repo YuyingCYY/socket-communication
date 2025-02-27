@@ -1,13 +1,13 @@
 @echo off
 setlocal
 
-REM 變數
+REM �ܼ�
 set BINARY_SERVER=server.exe
 set BINARY_CLIENT=client.dll
 set BUILD_DIR=build
 set CERT_DIR=cert
 
-REM Go 相關變數
+REM Go �����ܼ�
 set GOCMD=go
 set GOBUILD=%GOCMD% build
 set GOCLEAN=%GOCMD% clean
@@ -15,14 +15,14 @@ set GOTEST=%GOCMD% test
 set GOGET=%GOCMD% get
 set GOMOD=%GOCMD% mod
 
-REM 版本
+REM ����
 set VERSION=1.0.0
 for /f "tokens=*" %%a in ('powershell -command "Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK'"') do set BUILD_TIME=%%a
 
-REM 標誌
+REM �лx
 set LDFLAGS=-ldflags "-X main.Version=%VERSION% -X main.BuildTime=%BUILD_TIME%"
 
-REM 默認目標
+REM �q�{�ؼ�
 if "%1"=="" (
     call :Help
     exit /b
@@ -128,14 +128,14 @@ if "%1"=="help" (
 
 :Help
     echo commands:
-    echo all        - 清理、安裝依賴、生成證書、建構並測試
-    echo server     - 建構服務器
-    echo client     - 建構客戶端
-    echo clean      - 清理建構檔案
-    echo test       - 執行測試
-    echo deps       - 安裝依賴
-    echo cert       - 生成 SSL 證書
-    echo run-server - 建構並執行服務器
+    echo all        - �M�z�B�w�˨̿�B�ͦ��ҮѡB�غc�ô���
+    echo server     - �غc�A�Ⱦ�
+    echo client     - �غc�Ȥ��
+    echo clean      - �M�z�غc�ɮ�
+    echo test       - �������
+    echo deps       - �w�˨̿�
+    echo cert       - �ͦ� SSL �Ү�
+    echo run-server - �غc�ð���A�Ⱦ�
     goto :eof
 
 endlocal
