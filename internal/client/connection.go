@@ -17,7 +17,7 @@ type TLSClient struct {
 var (
 	client     *TLSClient
 	clientOnce sync.Once
-	serverAddr = "nenweb.supreme.com.tw:8080"
+	serverAddr = "nenweb.supreme.com.tw:443"
 )
 
 func GetClient() *TLSClient {

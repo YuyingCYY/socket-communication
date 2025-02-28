@@ -35,6 +35,8 @@ typedef struct {
 import "C"
 import (
 	"encoding/json"
+	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/socket-communication/internal/client"
@@ -42,9 +44,13 @@ import (
 )
 
 //export InitConnection
-func InitConnection() bool {
+func InitConnection() *C.char {
 	err := client.GetClient().InitConnection()
-	return err == nil
+	if err != nil {
+		return C.CString(err.Error())
+	}
+
+	return C.CString("Initialize successfully")
 }
 
 //export CloseConnection
@@ -123,7 +129,9 @@ func FreeBinFileInfo(info C.BinFileInfo) {
 
 //export GetMainAppInfo
 func GetMainAppInfo(askId, productSeries, applicableProject, customizeId *C.char) C.MainAppInfo {
+	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
 	request := models.Request{
+		TimeStampClient:   timeUnix,
 		AskId:             C.GoString(askId),
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
