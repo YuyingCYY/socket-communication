@@ -4,23 +4,73 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 )
 
-func InitLogger(logFile string) error {
+var (
+	logFile   *os.File
+	lastDate  string
+	logDir    string
+	initMutex sync.Mutex
+)
+
+func InitLogger(dir string) error {
+	initMutex.Lock()
+	defer initMutex.Unlock()
+
+	logDir = dir
+
 	// 確保日誌目錄存在
-	logDir := filepath.Dir(logFile)
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return err
 	}
 
-	// 打開日誌文件
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	// 初始化日誌文件
+	return updateLogFile()
+}
+
+// updateLogFile 更新日誌文件
+func updateLogFile() error {
+	// 根據當前日期生成日誌文件名
+	currentDate := time.Now().Format("2006-01-02")
+	if currentDate == lastDate && logFile != nil {
+		return nil // 日期未變化，無需更新
+	}
+
+	// 關閉舊的日誌文件
+	if logFile != nil {
+		logFile.Close()
+	}
+
+	// 創建新的日誌文件
+	logFileName := filepath.Join(logDir, "log-"+currentDate+".log")
+	file, err := os.OpenFile(logFileName, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 
+	// 設置日誌輸出
 	log.SetOutput(file)
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
+	// 更新狀態
+	logFile = file
+	lastDate = currentDate
+
 	return nil
+}
+
+// Log 寫入日誌，自動檢查是否需要切換日誌文件
+func Log(message string) {
+	initMutex.Lock()
+	defer initMutex.Unlock()
+
+	// 檢查是否需要切換日誌文件
+	if err := updateLogFile(); err != nil {
+		log.Println("Failed to update log file:", err)
+	}
+
+	// 寫入日誌
+	log.Println(message)
 }
