@@ -1,13 +1,13 @@
 @echo off
 setlocal
 
-REM ï¿½Ü¼ï¿½
+REM ÅÜ¼Æ
 set BINARY_SERVER=server.exe
 set BINARY_CLIENT=client.dll
 set BUILD_DIR=build
 set CERT_DIR=cert
 
-REM Go ï¿½ï¿½ï¿½ï¿½ï¿½Ü¼ï¿½
+REM Go ¬ÛÃöÅÜ¼Æ
 set GOCMD=go
 set GOBUILD=%GOCMD% build
 set GOCLEAN=%GOCMD% clean
@@ -15,14 +15,14 @@ set GOTEST=%GOCMD% test
 set GOGET=%GOCMD% get
 set GOMOD=%GOCMD% mod
 
-REM ï¿½ï¿½ï¿½ï¿½
+REM ª©¥»
 set VERSION=1.0.0
 for /f "tokens=*" %%a in ('powershell -command "Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK'"') do set BUILD_TIME=%%a
 
-REM ï¿½Ð»x
+REM ¼Ð»x
 set LDFLAGS=-ldflags "-X main.Version=%VERSION% -X main.BuildTime=%BUILD_TIME%"
 
-REM ï¿½qï¿½{ï¿½Ø¼ï¿½
+REM Àq»{¥Ø¼Ð
 if "%1"=="" (
     call :Help
     exit /b
@@ -42,8 +42,13 @@ if "%1"=="server" (
     exit /b
 )
 
-if "%1"=="client" (
-    call :BuildClient
+if "%1"=="client32" (
+    call :BuildClient32
+    exit /b
+)
+
+if "%1"=="client64" (
+    call :BuildClient64
     exit /b
 )
 
@@ -78,19 +83,26 @@ if "%1"=="help" (
 )
 
 :BuildServer
-    if not exist "%BUILD_DIR%" (
+    if not exist "%BUILD_DIR%\server" (
         mkdir "%BUILD_DIR%\server"
-        mkdir "%BUILD_DIR%\client"
     )
     %GOBUILD% %LDFLAGS% -o %BUILD_DIR%\server\%BINARY_SERVER% ./cmd/server
     goto :eof
 
-:BuildClient
-    if not exist "%BUILD_DIR%" (
-        mkdir "%BUILD_DIR%\server"
-        mkdir "%BUILD_DIR%\client"
+:BuildClient32
+    if not exist "%BUILD_DIR%\client\386" (
+        mkdir "%BUILD_DIR%\client\386"
     )
-    %GOBUILD% -buildmode=c-shared -o %BUILD_DIR%\client\%BINARY_CLIENT% ./cmd/client
+    go env -w GOARCH=386
+    %GOBUILD% -buildmode=c-shared -o %BUILD_DIR%\client\386\%BINARY_CLIENT% ./cmd/client
+    goto :eof
+
+:BuildClient64
+    if not exist "%BUILD_DIR%\client\amd64" (
+        mkdir "%BUILD_DIR%\client\amd64"
+    )
+    go env -w GOARCH=amd64
+    %GOBUILD% -buildmode=c-shared -o %BUILD_DIR%\client\amd64\%BINARY_CLIENT% ./cmd/client
     goto :eof
 
 :Clean
@@ -128,14 +140,15 @@ if "%1"=="help" (
 
 :Help
     echo commands:
-    echo all        - ï¿½Mï¿½zï¿½Bï¿½wï¿½Ë¨Ì¿ï¿½Bï¿½Í¦ï¿½ï¿½Ò®Ñ¡Bï¿½Øºcï¿½Ã´ï¿½ï¿½ï¿½
-    echo server     - ï¿½Øºcï¿½Aï¿½È¾ï¿½
-    echo client     - ï¿½Øºcï¿½È¤ï¿½ï¿½
-    echo clean      - ï¿½Mï¿½zï¿½Øºcï¿½É®ï¿½
-    echo test       - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    echo deps       - ï¿½wï¿½Ë¨Ì¿ï¿½
-    echo cert       - ï¿½Í¦ï¿½ SSL ï¿½Ò®ï¿½
-    echo run-server - ï¿½Øºcï¿½Ã°ï¿½ï¿½ï¿½Aï¿½È¾ï¿½
+    echo all        - ²M²z¡B¦w¸Ë¨Ì¿à¡B¥Í¦¨ÃÒ®Ñ¡B«Øºc¨Ã´ú¸Õ
+    echo server     - «ØºcªA°È¾¹
+    echo client32   - «Øºcx86«È¤áºÝ
+	echo client64   - «Øºcx64«È¤áºÝ
+    echo clean      - ²M²z«ØºcÀÉ®×
+    echo test       - °õ¦æ´ú¸Õ
+    echo deps       - ¦w¸Ë¨Ì¿à
+    echo cert       - ¥Í¦¨ SSL ÃÒ®Ñ
+    echo run-server - «Øºc¨Ã°õ¦æªA°È¾¹
     goto :eof
 
 endlocal
