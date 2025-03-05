@@ -18,7 +18,7 @@ func main() {
 
 	// 初始化日誌
 	if err := logger.InitLogger(cfg.LogFile); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// 加載 TLS 證書
@@ -94,7 +94,9 @@ func handleConnection(conn net.Conn, basePath string) {
 			case "MainApp":
 				response = server.ProcessMainAppRequest(req, basePath)
 			default:
-				response = server.ProcessFileRequest(req, basePath)
+				response = models.Response{
+					Error: "Invalid askId",
+				}
 			}
 		}
 

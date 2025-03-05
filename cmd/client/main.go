@@ -103,6 +103,12 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 		}
 	}
 
+	if response.Error != "" {
+		return C.BinFileInfo{
+			errorMsg: C.CString(response.Error),
+		}
+	}
+
 	return C.BinFileInfo{
 		fileName:        C.CString(response.FileInfo.FileName),
 		filePath:        C.CString(response.FileInfo.FilePath),
@@ -151,6 +157,12 @@ func GetMainAppInfo(askId, productSeries, applicableProject, customizeId *C.char
 	if err := decoder.Decode(&response); err != nil {
 		return C.MainAppInfo{
 			errorMsg: C.CString(err.Error()),
+		}
+	}
+
+	if response.Error != "" {
+		return C.MainAppInfo{
+			errorMsg: C.CString(response.Error),
 		}
 	}
 
