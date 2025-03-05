@@ -58,7 +58,7 @@ func ProcessFileRequest(req models.Request, basePath string) models.Response {
 	fileContent, err := os.ReadFile(binFile)
 	if err != nil {
 		return models.Response{
-			Error: fmt.Sprintf("Error reading file contetn: %v", err),
+			Error: fmt.Sprintf("Error reading file content: %v", err),
 		}
 	}
 

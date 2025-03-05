@@ -2,19 +2,20 @@ package main
 
 /*
 #include <stdlib.h>
+#include <stdint.h>
 
 // 定義結構體（與 Go 中的定義一致）
 typedef struct {
 	char* fileName;
 	char* filePath;
-	long fileSize;
+	int64_t fileSize;
 	char* fileContent;
 	size_t fileContentSize;
 	char* errorMsg;
 } BinFileInfo;
 
 typedef struct {
-	long fileSize;
+	int64_t fileSize;
 	char* appContent;
 	char* version;
 	char* blVersion;
@@ -105,7 +106,7 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 	return C.BinFileInfo{
 		fileName:        C.CString(response.FileInfo.FileName),
 		filePath:        C.CString(response.FileInfo.FilePath),
-		fileSize:        C.long(response.FileInfo.FileSize),
+		fileSize:        C.int64_t(response.FileInfo.FileSize),
 		fileContent:     C.CString(string(response.FileInfo.FileContent)),
 		fileContentSize: C.size_t(len(response.FileInfo.FileContent)),
 	}
@@ -154,7 +155,7 @@ func GetMainAppInfo(askId, productSeries, applicableProject, customizeId *C.char
 	}
 
 	replyContent := C.ReplyContent{
-		fileSize:   C.long(response.MainAppInfo.ReplyContent.FileSize),
+		fileSize:   C.int64_t(response.MainAppInfo.ReplyContent.FileSize),
 		appContent: C.CString(response.MainAppInfo.ReplyContent.AppContent),
 		version:    C.CString(response.MainAppInfo.ReplyContent.Version),
 		blVersion:  C.CString(response.MainAppInfo.ReplyContent.BLVersion),
