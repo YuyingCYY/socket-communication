@@ -121,10 +121,11 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 
 	if err != nil {
 		return models.Response{
-			Error: fmt.Sprintf("Error Unmarshal parses the JSON data"),
+			Error: fmt.Sprintf("Error Unmarshal parses the JSON data: %v", err),
 		}
 	}
 
+	// TODO: 這裡的回覆內容需要根據實際情況進行修改
 	mainAppResponse := models.MainAppResponse{
 		AskReplyId:      "MainApp",
 		TimeStampClient: req.TimeStampClient,
