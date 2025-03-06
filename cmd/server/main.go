@@ -57,26 +57,8 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				}
 			}
 
-			var response models.Response
-
-			// 檢查是否為獲取 .bin 檔
-			if req.IsGetBinFile {
-				response = server.ProcessFileRequest(req, basePath)
-			} else {
-				// 根據 askId 處理請求
-				switch req.AskId {
-				case "MainApp":
-					response = server.ProcessMainAppRequest(req, basePath)
-				default:
-					if req.Command == "connect" {
-						response = models.Response{}
-					} else {
-						response = models.Response{
-							Error: "Invalid askId",
-						}
-					}
-				}
-			}
+			// 處理請求並生成響應
+			response := processRequest(req, basePath)
 
 			// 發送響應
 			if err := encoder.Encode(response); err != nil {
@@ -85,6 +67,29 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 			}
 
 			log.Printf("Sent response: %+v", response)
+		}
+	}
+}
+
+// 根據請求類型處理請求並返回適當的響應
+func processRequest(req models.Request, basePath string) models.Response {
+	// 文件檔案處理
+	if req.IsGetBinFile {
+		return server.ProcessFileRequest(req, basePath)
+	}
+
+	// 處理連接命令
+	if req.Command == "connect" {
+		return models.Response{}
+	}
+
+	// 根據 askId 處理請求
+	switch req.AskId {
+	case "MainApp":
+		return server.ProcessMainAppRequest(req, basePath)
+	default:
+		return models.Response{
+			Error: "Invalid askId",
 		}
 	}
 }
