@@ -49,6 +49,14 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				return
 			}
 
+			// 檢查連接站點訊息
+			if req.Command == "connect" {
+				if server.ValidateStationInfo(&req, encoder) {
+					log.Printf("Invalid station information, closing connection")
+					return
+				}
+			}
+
 			var response models.Response
 
 			// 檢查是否為獲取 .bin 檔
@@ -60,8 +68,12 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				case "MainApp":
 					response = server.ProcessMainAppRequest(req, basePath)
 				default:
-					response = models.Response{
-						Error: "Invalid askId",
+					if req.Command == "connect" {
+						response = models.Response{}
+					} else {
+						response = models.Response{
+							Error: "Invalid askId",
+						}
 					}
 				}
 			}
