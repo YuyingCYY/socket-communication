@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  socket-server:
+    tty: true # Keep the container running
+    restart: always # Restart the container if it stops
+    image: supreme-socket-server # Use the image built from the Dockerfile
+    container_name: supreme-socket-server
+    build: . # Build the image from the Dockerfile in the current directory
+    ports:
+      - "443:443"
+    env_file:
+      - .env
+    volumes:
+      - C:\bootloader:/resources

@@ -1,6 +1,19 @@
 # 後勤平台管理系統 - Socket 傳輸
 
-## 部屬
+## Docker 部屬
+
+1. 需先安裝 Docker
+2. 終端指令建置
+
+   ```shell
+   make docker-build
+   ```
+
+3. 終端指令運行
+
+   ```shell
+   make docker-up
+   ```
 
 ## 建置工具
 

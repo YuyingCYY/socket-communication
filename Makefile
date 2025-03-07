@@ -64,6 +64,26 @@ cert:
 run-server: server
 	./$(BUILD_DIR)/server/$(BINARY_SERVER)
 
+# Dokcer 相關
+docker-build:
+	docker-compose build
+
+# Docker 啟動服務
+docker-up:
+	docker-compose up
+
+# Docker 停止服務
+docker-down:
+	docker-compose down
+
+# 查看 Docker 日誌
+docker-logs:
+	docker-compose logs -f
+
+# 清理 Docker 容器
+docker-clean:
+	docker-compose down -v --rmi all
+
 # 幫助信息
 help:
 	@echo "Make commands:"
@@ -75,3 +95,8 @@ help:
 	@echo "make deps       - 安裝依賴"
 	@echo "make cert       - 生成 SSL 證書"
 	@echo "make run-server - 建構並執行服務器"
+	@echo "make docker-build - 建構 Docker 容器"
+	@echo "make docker-up  - 啟動 Docker 容器"
+	@echo "make docker-down - 停止 Docker 容器"
+	@echo "make docker-logs - 查看 Docker 容器日誌"
+	@echo "make docker-clean - 清理 Docker 容器"
