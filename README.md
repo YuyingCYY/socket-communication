@@ -15,6 +15,56 @@
    make docker-up
    ```
 
+### docker 相關指令
+
+查詢運行的容器:
+
+```shell
+docker ps
+```
+
+進入到容器:
+
+```shell
+docker exec -it <container_name> /bin/sh
+```
+
+- `<container_name>`替換為要進入的容器名稱，例如此專案:`supreme-socket-server`
+- 因容器是 Alpine Linux，所以可能需要 `/bin/sh`，如為其他基礎映像（如 Ubuntu），可以用 `/bin/bash`。
+
+查看日誌文件:
+
+```shell
+cd /app/logs
+cat log_name.log
+```
+
+如果不知道確切路徑，可以用 ls -l 或 find / -name "logs" 尋找
+
+### 推至 Docker Hub
+
+1. 終端登入 docker:
+
+   ```shell
+   docker login
+   ```
+
+2. 為本地鏡像添加標籤，格式 `用戶名/鏡像名稱:標籤`:
+
+   ```shell
+   docker tag your-local-image your-dockerhub-username/your-image-name:tag
+   ```
+
+   - `your-local-image`: 本地構建的鏡像名稱。
+   - `your-dockerhub-username`: Docker Hub 用戶名。
+   - `your-image-name:tag`: 鏡像名稱和標籤（例如 `myapp:v1`）。
+
+3. 推送鏡像到倉庫: 標記好的鏡像推到 Docker Hub:
+
+   ```shell
+   docker push your-dockerhub-username/your-image-name:tag
+   ```
+
 ## 建置工具
 
 Windows 系統使用 `build.bat`，Linux 和 MacOS 使用 `Makefile`檔案，各自皆可使用 `Help` 查詢 command 指令。

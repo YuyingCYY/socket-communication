@@ -1,7 +1,7 @@
 version: "3.9"
 
 services:
-  socket-server:
+  supreme-socket-server:
     tty: true # Keep the container running
     restart: always # Restart the container if it stops
     image: supreme-socket-server # Use the image built from the Dockerfile
@@ -13,3 +13,6 @@ services:
       - .env
     volumes:
       - C:\bootloader:/resources
+      - ./.env:/app/.env # Mount the .env file to the container
+      - ./cert:/app/cert # Mount the cert directory to the container
+      - ./logs:/app/logs # Mount the logs directory to the container
