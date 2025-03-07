@@ -1,16 +1,98 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/socket-communication/internal/config"
 	"github.com/socket-communication/internal/logger"
 	"github.com/socket-communication/internal/models"
 	"github.com/socket-communication/internal/server"
 )
+
+// 處理單個客戶端連接的生命週期
+func connectionHandler(ctx context.Context, conn net.Conn, basePath string, doneChan chan struct{}) {
+	defer func() {
+		log.Printf("Connection from %s closed", conn.RemoteAddr())
+		conn.Close()
+		doneChan <- struct{}{}
+	}()
+
+	log.Printf("New connection from %s", conn.RemoteAddr())
+
+	decoder := json.NewDecoder(conn)
+	encoder := json.NewEncoder(conn)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			var req models.Request
+			if err := decoder.Decode(&req); err != nil {
+				log.Printf("Error decoding request: %v", err)
+				return
+			}
+
+			log.Printf("Received request: %+v", req)
+
+			// 檢查是否為斷開連接
+			if req.Command == "disconnect" {
+				log.Printf("Client requested to close the connection")
+				return
+			}
+
+			// 檢查連接站點訊息
+			if req.Command == "connect" {
+				if server.ValidateStationInfo(&req, encoder) {
+					log.Printf("Invalid station information, closing connection")
+					return
+				}
+			}
+
+			// 處理請求並生成響應
+			response := processRequest(req, basePath)
+
+			// 發送響應
+			if err := encoder.Encode(response); err != nil {
+				log.Printf("Error encoding response: %v", err)
+				return
+			}
+
+			log.Printf("Sent response: %+v", response)
+		}
+	}
+}
+
+// 根據請求類型處理請求並返回適當的響應
+func processRequest(req models.Request, basePath string) models.Response {
+	// 文件檔案處理
+	if req.IsGetBinFile {
+		return server.ProcessFileRequest(req, basePath)
+	}
+
+	// 處理連接命令
+	if req.Command == "connect" {
+		return models.Response{}
+	}
+
+	// 根據 askId 處理請求
+	switch req.AskId {
+	case "MainApp":
+		return server.ProcessMainAppRequest(req, basePath)
+	default:
+		return models.Response{
+			Error: "Invalid askId",
+		}
+	}
+}
 
 func main() {
 	// 加載配置
@@ -36,76 +118,56 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer func(listener net.Listener) {
-		err := listener.Close()
-		if err != nil {
-			log.Printf("Error closing listener: %v", err)
-		}
-	}(listener)
+	defer listener.Close()
+
+	// 創建上下文和取消函數
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// 監聽系統中斷信號
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// 通道用於通知所有連接完成
+	doneChan := make(chan struct{})
+	var connectionWg sync.WaitGroup
 
 	log.Printf("Server started on %s", cfg.ServerPort)
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Printf("Error accepting connection: %v", err)
-			continue
-		}
-		go handleConnection(conn, cfg.BasePath)
-	}
-}
-
-// 處理客戶端連接及請求
-func handleConnection(conn net.Conn, basePath string) {
-	defer func(conn net.Conn) {
-		err := conn.Close()
-		if err != nil {
-			log.Printf("Error closing connection: %v", err)
-		}
-	}(conn)
-	log.Printf("New connection from %s", conn.RemoteAddr())
-
-	decoder := json.NewDecoder(conn)
-	encoder := json.NewEncoder(conn)
-
-	for {
-		var req models.Request
-		if err := decoder.Decode(&req); err != nil {
-			log.Printf("Error decoding request: %v", err)
-			break // 解碼失敗，退出循環關閉連接
-		}
-
-		log.Printf("Received request: %+v", req)
-
-		// 檢查是否為斷開連接
-		if req.Command == "disconnect" {
-			log.Printf("Client requested to close the connection")
-			break
-		}
-
-		var response models.Response
-
-		// 檢查是否為獲取 .bin 檔
-		if req.IsGetBinFile {
-			response = server.ProcessFileRequest(req, basePath)
-		} else {
-			// 根據 askId 處理請求
-			switch req.AskId {
-			case "MainApp":
-				response = server.ProcessMainAppRequest(req, basePath)
-			default:
-				response = models.Response{
-					Error: "Invalid askId",
-				}
+	// 接收連接的 goroutine
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				log.Printf("Error accepting connection: %v", err)
+				break
 			}
-		}
 
-		// 發送響應
-		if err := encoder.Encode(response); err != nil {
-			log.Printf("Error encoding response: %v", err)
-			break // 編碼失敗，退出循環關閉連接
+			// 為每個連接啟動一個 goroutine
+			connectionWg.Add(1)
+			go func(conn net.Conn) {
+				defer connectionWg.Done()
+				connectionHandler(ctx, conn, cfg.BasePath, doneChan)
+			}(conn)
 		}
+	}()
 
-		log.Printf("Sent response: %+v", response)
+	// 等待系統中斷信號
+	<-sigChan
+	log.Println("Shutting down server...")
+
+	// 取消上下文以停止接受新連接
+	cancel()
+
+	// 等待所有活動連接完成
+	go func() {
+		connectionWg.Wait()
+		close(doneChan)
+	}()
+
+	// 等待所有連接關閉
+	for range doneChan {
 	}
+
+	log.Println("Server shutdown complete")
 }

@@ -12,6 +12,22 @@ import (
 	"github.com/socket-communication/internal/models"
 )
 
+func ValidateStationInfo(req *models.Request, encoder *json.Encoder) bool {
+	log.Printf("Station name: %s, Station Type: %s, Station ID: %s, Operator ID: %s",
+		req.Station.StationName, req.Station.StationType, req.Station.StationId, req.Station.OperatorId)
+
+	if req.Station.StationName == "" || req.Station.StationType == "" || req.Station.StationId == "" || req.Station.OperatorId == "" {
+		response := models.Response{
+			Error: "Invalid station information",
+		}
+		if err := encoder.Encode(response); err != nil {
+			log.Printf("Error encoding response: %v", err)
+		}
+		return true
+	}
+	return false
+}
+
 func ProcessFileRequest(req models.Request, basePath string) models.Response {
 	// 建構完整路徑
 	path := filepath.Join(basePath, req.AskId, req.ProductSeries, req.ApplicableProject)
@@ -121,10 +137,11 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 
 	if err != nil {
 		return models.Response{
-			Error: fmt.Sprintf("Error Unmarshal parses the JSON data"),
+			Error: fmt.Sprintf("Error Unmarshal parses the JSON data: %v", err),
 		}
 	}
 
+	// TODO: 這裡的回覆內容需要根據實際情況進行修改
 	mainAppResponse := models.MainAppResponse{
 		AskReplyId:      "MainApp",
 		TimeStampClient: req.TimeStampClient,

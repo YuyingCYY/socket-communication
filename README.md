@@ -1,5 +1,7 @@
 # 後勤平台管理系統 - Socket 傳輸
 
+## 部屬
+
 ## 建置工具
 
 Windows 系統使用 `build.bat`，Linux 和 MacOS 使用 `Makefile`檔案，各自皆可使用 `Help` 查詢 command 指令。

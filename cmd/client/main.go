@@ -45,10 +45,37 @@ import (
 )
 
 //export InitConnection
-func InitConnection() *C.char {
+func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.char {
 	err := client.GetClient().InitConnection()
 	if err != nil {
 		return C.CString(err.Error())
+	}
+
+	request := models.Request{
+		Command: "connect",
+		Station: models.Station{
+			StationType: C.GoString(stationType),
+			StationName: C.GoString(stationName),
+			StationId:   C.GoString(stationId),
+			OperatorId:  C.GoString(operatorId),
+		},
+	}
+	decoder, err := client.GetClient().SendRequest(request)
+	if err != nil {
+		response := models.Response{
+			Error: err.Error(),
+		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
+	}
+
+	var response models.Response
+	if err := decoder.Decode(&response); err != nil {
+		return C.CString(err.Error())
+	}
+
+	if response.Error != "" {
+		return C.CString(response.Error)
 	}
 
 	return C.CString("Initialize successfully")

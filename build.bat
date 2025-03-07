@@ -3,7 +3,7 @@ setlocal
 
 REM ≈‹º∆
 set BINARY_SERVER=server.exe
-set BINARY_CLIENT=client.dll
+set BINARY_CLIENT=SocketClient.dll
 set BUILD_DIR=build
 set CERT_DIR=cert
 
