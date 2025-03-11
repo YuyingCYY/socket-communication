@@ -66,7 +66,8 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				return
 			}
 
-			log.Printf("Sent response: %+v", response)
+			// log.Printf("Sent response: %+v", response)
+			log.Println("Sent response successfully")
 		}
 	}
 }
