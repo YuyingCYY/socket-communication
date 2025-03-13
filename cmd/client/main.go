@@ -66,16 +66,16 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.
 			Error: err.Error(),
 		}
 		jsonResponse, _ := json.Marshal(response)
-		return C.CString(string(jsonResponse))
+		return C.CString("Error:" + string(jsonResponse))
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
-		return C.CString(err.Error())
+		return C.CString("Error: " + err.Error())
 	}
 
 	if response.Error != "" {
-		return C.CString(response.Error)
+		return C.CString("Error: " + response.Error)
 	}
 
 	return C.CString("Initialize successfully")
@@ -83,6 +83,15 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.
 
 //export CloseConnection
 func CloseConnection() *C.char {
+	// 檢查是否已連線
+	if !client.GetClient().IsConnected() {
+		response := models.Response{
+			Error: "Not connected",
+		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
+	}
+
 	request := models.Request{
 		Command: "disconnect",
 	}
@@ -108,6 +117,13 @@ func CloseConnection() *C.char {
 
 //export GetBinFileInfo
 func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char) C.BinFileInfo {
+	// 檢查是否已連線
+	if !client.GetClient().IsConnected() {
+		return C.BinFileInfo{
+			errorMsg: C.CString("Not connected"),
+		}
+	}
+
 	request := models.Request{
 		AskId:             C.GoString(askId),
 		ProductSeries:     C.GoString(productSeries),
@@ -163,6 +179,13 @@ func FreeBinFileInfo(info C.BinFileInfo) {
 
 //export GetMainAppInfo
 func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.MainAppInfo {
+	// 檢查是否已連線
+	if !client.GetClient().IsConnected() {
+		return C.MainAppInfo{
+			errorMsg: C.CString("Not connected"),
+		}
+	}
+
 	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
 	request := models.Request{
 		TimeStampClient:   timeUnix,

@@ -98,3 +98,10 @@ func (c *TLSClient) SendRequest(req interface{}) (*json.Decoder, error) {
 	// 返回解碼器
 	return json.NewDecoder(c.conn), nil
 }
+
+// IsConnected 檢查是否已連接
+func (c *TLSClient) IsConnected() bool {
+	c.connMux.Lock()
+	defer c.connMux.Unlock()
+	return c.conn != nil
+}
