@@ -44,11 +44,11 @@ import (
 	"github.com/socket-communication/internal/models"
 )
 
-//export InitConnection
-func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.char {
+//export InitializeClient
+func InitializeClient(stationType, stationName, stationId, operatorId *C.char) bool {
 	err := client.GetClient().InitConnection()
 	if err != nil {
-		return C.CString(err.Error())
+		return false
 	}
 
 	request := models.Request{
@@ -65,31 +65,31 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.
 		response := models.Response{
 			Error: err.Error(),
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString("Error:" + string(jsonResponse))
+		_, _ = json.Marshal(response)
+		return false
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
-		return C.CString("Error: " + err.Error())
+		return false
 	}
 
 	if response.Error != "" {
-		return C.CString("Error: " + response.Error)
+		return false
 	}
 
-	return C.CString("Initialize successfully")
+	return true
 }
 
 //export CloseConnection
-func CloseConnection() *C.char {
+func CloseConnection() bool {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		response := models.Response{
 			Error: "Not connected",
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString(string(jsonResponse))
+		_, _ = json.Marshal(response)
+		return false
 	}
 
 	request := models.Request{
@@ -100,19 +100,19 @@ func CloseConnection() *C.char {
 		response := models.Response{
 			Error: err.Error(),
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString(string(jsonResponse))
+		_, _ = json.Marshal(response)
+		return false
 	}
 
 	if err := client.GetClient().CloseConnection(); err != nil {
 		response := models.Response{
 			Error: err.Error(),
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString(string(jsonResponse))
+		_, _ = json.Marshal(response)
+		return false
 	}
 
-	return C.CString("disconnect")
+	return true
 }
 
 //export GetBinFileInfo
