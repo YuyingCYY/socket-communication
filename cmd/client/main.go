@@ -35,7 +35,6 @@ typedef struct {
 */
 import "C"
 import (
-	"encoding/json"
 	"strconv"
 	"time"
 	"unsafe"
@@ -48,6 +47,7 @@ import (
 func InitializeClient(stationType, stationName, stationId, operatorId *C.char) bool {
 	err := client.GetClient().InitConnection()
 	if err != nil {
+		// return C.CString("Error: " + err.Error())
 		return false
 	}
 
@@ -62,19 +62,22 @@ func InitializeClient(stationType, stationName, stationId, operatorId *C.char) b
 	}
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
-		response := models.Response{
-			Error: err.Error(),
-		}
-		_, _ = json.Marshal(response)
+		// response := models.Response{
+		// 	Error: err.Error(),
+		// }
+		// jsonResponse, _ = json.Marshal(response)
+		// return C.CString("Error: " + string(jsonResponse))
 		return false
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
+		// return C.CString("Error: " + err.Error())
 		return false
 	}
 
 	if response.Error != "" {
+		// return C.CString("Error: " + response.Error)
 		return false
 	}
 
@@ -85,10 +88,11 @@ func InitializeClient(stationType, stationName, stationId, operatorId *C.char) b
 func CloseConnection() bool {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
-		response := models.Response{
-			Error: "Not connected",
-		}
-		_, _ = json.Marshal(response)
+		// response := models.Response{
+		// 	Error: "Not connected",
+		// }
+		// jsonResponse, _ = json.Marshal(response)
+		// return C.CString(string(jsonResponse))
 		return false
 	}
 
@@ -97,18 +101,20 @@ func CloseConnection() bool {
 	}
 	_, err := client.GetClient().SendRequest(request)
 	if err != nil {
-		response := models.Response{
-			Error: err.Error(),
-		}
-		_, _ = json.Marshal(response)
+		// response := models.Response{
+		// 	Error: err.Error(),
+		// }
+		// jsonResponse, _ = json.Marshal(response)
+		// return C.CString(string(jsonResponse))
 		return false
 	}
 
 	if err := client.GetClient().CloseConnection(); err != nil {
-		response := models.Response{
-			Error: err.Error(),
-		}
-		_, _ = json.Marshal(response)
+		// response := models.Response{
+		// 	Error: err.Error(),
+		// }
+		// jsonResponse, _ = json.Marshal(response)
+		// return C.CString(string(jsonResponse))
 		return false
 	}
 

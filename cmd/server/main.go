@@ -49,13 +49,13 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				return
 			}
 
-			// 檢查連接站點訊息
-			if req.Command == "connect" {
-				if server.ValidateStationInfo(&req, encoder) {
-					log.Printf("Invalid station information, closing connection")
-					return
-				}
-			}
+			// TODO 檢查連接站點訊息
+			// if req.Command == "connect" {
+			// 	if server.ValidateStationInfo(&req, encoder) {
+			// 		log.Printf("Invalid station information, closing connection")
+			// 		return
+			// 	}
+			// }
 
 			// 處理請求並生成響應
 			response := processRequest(req, basePath)
@@ -66,7 +66,6 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				return
 			}
 
-			// log.Printf("Sent response: %+v", response)
 			log.Println("Sent response successfully")
 		}
 	}
