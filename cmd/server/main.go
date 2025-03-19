@@ -30,6 +30,7 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
 
+	var station *models.Station
 	for {
 		select {
 		case <-ctx.Done():
@@ -41,21 +42,29 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				return
 			}
 
-			log.Printf("Received request: %+v", req)
-
 			// 檢查是否為斷開連接
 			if req.Command == "disconnect" {
 				log.Printf("Client requested to close the connection")
 				return
 			}
 
-			// 檢查連接站點訊息
+			// 檢查連接站點訊息並保存
 			if req.Command == "connect" {
-				if server.ValidateStationInfo(&req, encoder) {
+				if isValidate, s := server.ValidateStationInfo(&req, encoder); isValidate {
 					log.Printf("Invalid station information, closing connection")
 					return
+				} else {
+					station = s
 				}
 			}
+
+			req.Station = *station
+			if isValidate, _ := server.ValidateStationInfo(&req, encoder); isValidate {
+				log.Printf("Invalid station information, closing connection")
+				return
+			}
+
+			log.Printf("Received request: %+v", req)
 
 			// 處理請求並生成響應
 			response := processRequest(req, basePath)
