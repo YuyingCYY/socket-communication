@@ -8,9 +8,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
+	"github.com/go-co-op/gocron"
 	"github.com/socket-communication/internal/config"
 	"github.com/socket-communication/internal/logger"
 	"github.com/socket-communication/internal/models"
@@ -48,7 +51,7 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				return
 			}
 
-			// 檢查連接站點訊息並保存
+			// 檢查第一次連接站點訊息並保存
 			if req.Command == "connect" {
 				if isValidate, s := server.ValidateStationInfo(&req, encoder); isValidate {
 					log.Printf("Invalid station information, closing connection")
@@ -104,6 +107,45 @@ func processRequest(req models.Request, basePath string) models.Response {
 	}
 }
 
+// 定時刪除排程
+func runDeleteFilesScheduledTask(requestPath string) {
+	sch := gocron.NewScheduler(time.Local)
+	// 每天凌晨0點0分執行
+	cronExp := "0 0 * * *"
+	_, err := sch.Cron(cronExp).StartImmediately().Do(
+		func(dirPath string) {
+			err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
+				if !info.IsDir() {
+					err = os.Remove(path)
+					if err != nil {
+						return err
+					}
+					log.Printf("Deleted file: %s\n", path)
+				}
+
+				return nil
+			})
+
+			if err != nil {
+				log.Printf("Error deleting files: %v", err)
+			} else {
+				log.Printf("All files deleted successfully.")
+			}
+		}, requestPath,
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	// start the job in another goroutine
+	sch.StartAsync()
+}
+
 func main() {
 	// 加載配置
 	cfg := config.LoadConfig()
@@ -112,6 +154,9 @@ func main() {
 	if err := logger.InitLogger(cfg.LogFile); err != nil {
 		panic(err)
 	}
+
+	// 啟動刪除檔案排程
+	runDeleteFilesScheduledTask(cfg.RequestPath)
 
 	// 加載 TLS 證書
 	cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)

@@ -44,7 +44,7 @@ func (c *TLSClient) InitConnection() error {
 		return fmt.Errorf("failed to read CA certificate: %v", err)
 	}
 
-	// 創建 CA 證書池
+	// 創建 CA 證書池，接受自簽憑證
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caCert) {
 		return fmt.Errorf("failed to parse CA certificate")
