@@ -125,13 +125,20 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 	}
 
 	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
-	request := models.Request{
-		TimeStampClient:   timeUnix,
-		AskId:             C.GoString(askId),
+
+	// AskContent
+	askContent := models.AskContent{
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
-		IsGetBinFile:      true,
+	}
+
+	request := models.Request{
+		TimeStampClient: timeUnix,
+		AskId:           C.GoString(askId),
+		AskContent:      askContent,
+		IsGetBinFile:    true,
+		MsgValidateCode: "validateCode",
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
@@ -189,13 +196,19 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	}
 
 	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
-	request := models.Request{
-		TimeStampClient:   timeUnix,
-		AskId:             "MainApp",
+
+	// AskContent
+	askContent := models.AskContent{
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
-		IsGetBinFile:      false,
+	}
+
+	request := models.Request{
+		TimeStampClient: timeUnix,
+		AskId:           "MainApp",
+		AskContent:      askContent,
+		IsGetBinFile:    false,
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
