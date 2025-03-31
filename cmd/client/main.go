@@ -12,6 +12,7 @@ typedef struct {
 	char* fileContent;
 	size_t fileContentSize;
 	char* errorMsg;
+	int errorCode;
 } BinFileInfo;
 
 typedef struct {
@@ -30,6 +31,7 @@ typedef struct {
 	char* msgValidateCode;
 	ReplyContent replyContent;
 	char* errorMsg;
+	int errorCode;
 } MainAppInfo;
 
 */
@@ -48,7 +50,12 @@ import (
 func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.char {
 	err := client.GetClient().InitConnection()
 	if err != nil {
-		return C.CString(err.Error())
+		response := models.Response{
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientConnectionInitFailed, // 初始化連接失敗通常與 TLS 相關
+		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
 	request := models.Request{
@@ -63,19 +70,26 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		response := models.Response{
-			Error: err.Error(),
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientRequestSendFailed,
 		}
 		jsonResponse, _ := json.Marshal(response)
-		return C.CString("Error:" + string(jsonResponse))
+		return C.CString(string(jsonResponse))
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
-		return C.CString("Error: " + err.Error())
+		response := models.Response{
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientResponseDecodeFailed,
+		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
 	if response.Error != "" {
-		return C.CString("Error: " + response.Error)
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
 	return C.CString("Initialize successfully")
@@ -86,7 +100,8 @@ func CloseConnection() *C.char {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		response := models.Response{
-			Error: "Not connected",
+			Error:     "Not connected",
+			ErrorCode: models.ErrClientNotConnected,
 		}
 		jsonResponse, _ := json.Marshal(response)
 		return C.CString(string(jsonResponse))
@@ -98,7 +113,8 @@ func CloseConnection() *C.char {
 	_, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		response := models.Response{
-			Error: err.Error(),
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientRequestSendFailed,
 		}
 		jsonResponse, _ := json.Marshal(response)
 		return C.CString(string(jsonResponse))
@@ -106,7 +122,8 @@ func CloseConnection() *C.char {
 
 	if err := client.GetClient().CloseConnection(); err != nil {
 		response := models.Response{
-			Error: err.Error(),
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientConnectionCloseFailed,
 		}
 		jsonResponse, _ := json.Marshal(response)
 		return C.CString(string(jsonResponse))
@@ -120,7 +137,8 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.BinFileInfo{
-			errorMsg: C.CString("Not connected"),
+			errorMsg:  C.CString("Not connected"),
+			errorCode: C.int(models.ErrClientNotConnected),
 		}
 	}
 
@@ -144,20 +162,23 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.BinFileInfo{
-			errorMsg: C.CString(err.Error()),
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientRequestSendFailed),
 		}
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
 		return C.BinFileInfo{
-			errorMsg: C.CString(err.Error()),
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientResponseDecodeFailed),
 		}
 	}
 
 	if response.Error != "" {
 		return C.BinFileInfo{
-			errorMsg: C.CString(response.Error),
+			errorMsg:  C.CString(response.Error),
+			errorCode: C.int(response.ErrorCode),
 		}
 	}
 
@@ -191,7 +212,8 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.MainAppInfo{
-			errorMsg: C.CString("Not connected"),
+			errorMsg:  C.CString("Not connected"),
+			errorCode: C.int(models.ErrClientNotConnected),
 		}
 	}
 
@@ -214,20 +236,23 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.MainAppInfo{
-			errorMsg: C.CString(err.Error()),
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientRequestSendFailed),
 		}
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
 		return C.MainAppInfo{
-			errorMsg: C.CString(err.Error()),
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientResponseDecodeFailed),
 		}
 	}
 
 	if response.Error != "" {
 		return C.MainAppInfo{
-			errorMsg: C.CString(response.Error),
+			errorMsg:  C.CString(response.Error),
+			errorCode: C.int(response.ErrorCode),
 		}
 	}
 

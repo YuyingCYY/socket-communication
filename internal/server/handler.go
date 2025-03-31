@@ -14,15 +14,13 @@ import (
 )
 
 func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *models.Station) {
-	log.Printf("Station name: %s, Station Type: %s, Station ID: %s, Operator ID: %s",
-		req.Station.StationName, req.Station.StationType, req.Station.StationId, req.Station.OperatorId)
-
 	if req.Station.StationName == "" || req.Station.StationType == "" || req.Station.StationId == "" || req.Station.OperatorId == "" {
 		response := models.Response{
-			Error: "Invalid station information",
+			Error:     "Invalid station information",
+			ErrorCode: models.ErrClientInvalidStation,
 		}
 		if err := encoder.Encode(response); err != nil {
-			log.Printf("Error encoding response: %v", err)
+			log.Printf("[ERROR %d]Error encoding response: %v", models.ErrClientInvalidStation, err)
 		}
 		return true, nil
 	}
@@ -33,15 +31,14 @@ func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *mod
 func ProcessFileRequest(req models.Request, basePath string) models.Response {
 	// UUID 作為檔案名稱
 	reqUUID := uuid.New().String()
-	var errorMsg string
 
 	// 將請求內容轉換成json
 	jsonData, err := json.Marshal(req)
 	if err != nil {
-		errorMsg = "Error marshaling request: " + err.Error()
-		log.Print(errorMsg)
+		log.Printf("[ERROR %d] Error marshaling request: %v", models.ErrServerJSONMarshal, err)
 		return models.Response{
-			Error: errorMsg,
+			Error:     fmt.Sprintf("Error marshaling request: %v", err),
+			ErrorCode: models.ErrServerJSONMarshal,
 		}
 	}
 
@@ -50,10 +47,10 @@ func ProcessFileRequest(req models.Request, basePath string) models.Response {
 	if _, err := os.Stat(reqDirPath); os.IsNotExist(err) {
 		err = os.Mkdir(reqDirPath, 0755)
 		if err != nil {
-			errorMsg = "Error creating requests directory: " + err.Error()
-			log.Print(errorMsg)
+			log.Printf("[ERROR %d] Error creating requests directory: %v", models.ErrServerCreateDir, err)
 			return models.Response{
-				Error: errorMsg,
+				Error:     fmt.Sprintf("Error creating requests directory: %v", err),
+				ErrorCode: models.ErrServerCreateDir,
 			}
 		}
 	}
@@ -62,10 +59,10 @@ func ProcessFileRequest(req models.Request, basePath string) models.Response {
 	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
 	err = os.WriteFile(reqFilePath, jsonData, 0644)
 	if err != nil {
-		errorMsg = "Error writing request file: " + err.Error()
-		log.Print(errorMsg)
+		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
 		return models.Response{
-			Error: errorMsg,
+			Error:     fmt.Sprintf("Error writing request file: %v", err),
+			ErrorCode: models.ErrServerWriteFile,
 		}
 	}
 
@@ -77,10 +74,10 @@ func ProcessFileRequest(req models.Request, basePath string) models.Response {
 			// 讀取回傳檔案內容
 			respData, err := os.ReadFile(respFilePath)
 			if err != nil {
-				errorMsg = "Error reading response file: " + err.Error()
-				log.Print(errorMsg)
+				log.Printf("[ERROR %d] Error reading response file: %v", models.ErrServerReadFile, err)
 				return models.Response{
-					Error: errorMsg,
+					Error:     fmt.Sprintf("Error reading response file: %v", err),
+					ErrorCode: models.ErrServerReadFile,
 				}
 			}
 
@@ -111,11 +108,10 @@ func ProcessFileRequest(req models.Request, basePath string) models.Response {
 		time.Sleep(1 * time.Second)
 	}
 
-	// 回傳 Response
-	errorMsg = "Timeout waiting for response file"
-	log.Print(errorMsg)
+	log.Printf("[ERROR %d] Timeout waiting for response file", models.ErrServerTimeoutResponseFile)
 	return models.Response{
-		Error: errorMsg,
+		Error:     "Timeout waiting for response file",
+		ErrorCode: models.ErrServerTimeoutResponseFile,
 	}
 }
 
@@ -142,31 +138,38 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 	})
 
 	if err != nil {
+		log.Printf("[ERROR %d] Error searching for json file: %v", models.ErrServerFileSearch, err)
 		return models.Response{
-			Error: fmt.Sprintf("Error searching for json file: %v", err),
+			Error:     fmt.Sprintf("Error searching for json file: %v", err),
+			ErrorCode: models.ErrServerFileSearch,
 		}
 	}
 
 	if jsonFile == "" {
+		log.Printf("[ERROR %d] No .json file found in: %s", models.ErrServerFileSearch, path)
 		return models.Response{
-			Error: "No .json file found",
+			Error:     "No .json file found",
+			ErrorCode: models.ErrServerFileSearch,
 		}
 	}
 
 	// 檔案內容
 	fileContent, err := os.ReadFile(jsonFile)
 	if err != nil {
+		log.Printf("[ERROR %d] Error reading file content: %v", models.ErrServerReadFile, err)
 		return models.Response{
-			Error: fmt.Sprintf("Error reading file contetn: %v", err),
+			Error:     fmt.Sprintf("Error reading file content: %v", err),
+			ErrorCode: models.ErrServerReadFile,
 		}
 	}
 
 	var replyContent models.ReplyContent
 	err = json.Unmarshal(fileContent, &replyContent)
-
-	if err != nil {
+	if err = json.Unmarshal(fileContent, &replyContent); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
-			Error: fmt.Sprintf("Error Unmarshal parses the JSON data: %v", err),
+			Error:     fmt.Sprintf("Error unmarshaling JSON data: %v", err),
+			ErrorCode: models.ErrServerJSONUnmarshal,
 		}
 	}
 
