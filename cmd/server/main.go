@@ -101,8 +101,12 @@ func processRequest(req models.Request, basePath string) models.Response {
 	case "MainApp":
 		return server.ProcessMainAppRequest(req, basePath)
 	default:
+		status := models.Status{
+			Code:     models.ErrClientInvalidAskId,
+			ErrorMsg: "Invalid askId",
+		}
 		return models.Response{
-			Error: "Invalid askId",
+			Status: status,
 		}
 	}
 }
