@@ -6,11 +6,6 @@ package main
 
 // 定義結構體（與 Go 中的定義一致）
 typedef struct {
-	int code;
-	char* errorMsg;
-} Status;
-
-typedef struct {
 	char* fileName;
 	char* filePath;
 	int64_t fileSize;
@@ -28,28 +23,21 @@ typedef struct {
 } ReplyContent;
 
 typedef struct {
-	char* fileName;
-	int64_t fileSize;
-	char* fileType;
-	char* appContent;
-	char* version;
-	char* blVersion;
-} MainAppReplyContent;
-
-typedef struct {
 	char* askReplyId;
 	char* timeStampClient;
 	char* timeStampServer;
 	char* serverVersion;
 	char* replyStauts;
 	char* msgValidateCode;
-	MainAppReplyContent replyContent;
-	Status status;
+	ReplyContent replyContent;
+	char* errorMsg;
+	int errorCode;
 } MainAppInfo;
 
 */
 import "C"
 import (
+	"encoding/json"
 	"strconv"
 	"time"
 	"unsafe"
@@ -59,13 +47,15 @@ import (
 )
 
 //export InitConnection
-func InitConnection(stationType, stationName, stationId, operatorId *C.char) C.Status {
+func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.char {
 	err := client.GetClient().InitConnection()
 	if err != nil {
-		return C.Status{
-			code:     models.ErrClientConnectionInitFailed, // 初始化連接失敗通常與 TLS 相關
-			errorMsg: C.CString(err.Error()),
+		response := models.Response{
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientConnectionInitFailed, // 初始化連接失敗通常與 TLS 相關
 		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
 	request := models.Request{
@@ -79,33 +69,42 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) C.S
 	}
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
-		return C.Status{
-			code:     models.ErrClientRequestSendFailed,
-			errorMsg: C.CString(err.Error()),
+		response := models.Response{
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientRequestSendFailed,
 		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
-	var response models.Status
+	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
-		return C.Status{
-			code:     models.ErrClientResponseDecodeFailed,
-			errorMsg: C.CString(err.Error()),
+		response := models.Response{
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientResponseDecodeFailed,
 		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
-	return C.Status{
-		code: 0,
+	if response.Error != "" {
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
+
+	return C.CString("Initialize successfully")
 }
 
 //export CloseConnection
-func CloseConnection() C.Status {
+func CloseConnection() *C.char {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
-		return C.Status{
-			code:     models.ErrClientNotConnected,
-			errorMsg: C.CString("Not connected"),
+		response := models.Response{
+			Error:     "Not connected",
+			ErrorCode: models.ErrClientNotConnected,
 		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
 	request := models.Request{
@@ -113,22 +112,24 @@ func CloseConnection() C.Status {
 	}
 	_, err := client.GetClient().SendRequest(request)
 	if err != nil {
-		return C.Status{
-			code:     models.ErrClientRequestSendFailed,
-			errorMsg: C.CString(err.Error()),
+		response := models.Response{
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientRequestSendFailed,
 		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
 	if err := client.GetClient().CloseConnection(); err != nil {
-		return C.Status{
-			code:     models.ErrClientConnectionCloseFailed,
-			errorMsg: C.CString(err.Error()),
+		response := models.Response{
+			Error:     err.Error(),
+			ErrorCode: models.ErrClientConnectionCloseFailed,
 		}
+		jsonResponse, _ := json.Marshal(response)
+		return C.CString(string(jsonResponse))
 	}
 
-	return C.Status{
-		code: 0,
-	}
+	return C.CString("disconnect")
 }
 
 //export GetBinFileInfo
@@ -174,10 +175,10 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 		}
 	}
 
-	if response.Status.ErrorMsg != "" {
+	if response.Error != "" {
 		return C.BinFileInfo{
-			errorMsg:  C.CString(response.Status.ErrorMsg),
-			errorCode: C.int(response.Status.Code),
+			errorMsg:  C.CString(response.Error),
+			errorCode: C.int(response.ErrorCode),
 		}
 	}
 
@@ -211,10 +212,8 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.MainAppInfo{
-			status: C.Status{
-				code:     C.int(models.ErrClientNotConnected),
-				errorMsg: C.CString("Not connected"),
-			},
+			errorMsg:  C.CString("Not connected"),
+			errorCode: C.int(models.ErrClientNotConnected),
 		}
 	}
 
@@ -237,37 +236,29 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.MainAppInfo{
-			status: C.Status{
-				code:     C.int(models.ErrClientRequestSendFailed),
-				errorMsg: C.CString(err.Error()),
-			},
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientRequestSendFailed),
 		}
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
 		return C.MainAppInfo{
-			status: C.Status{
-				code:     C.int(models.ErrClientResponseDecodeFailed),
-				errorMsg: C.CString(err.Error()),
-			},
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientResponseDecodeFailed),
 		}
 	}
 
-	if response.Status.ErrorMsg != "" {
+	if response.Error != "" {
 		return C.MainAppInfo{
-			status: C.Status{
-				code:     C.int(response.Status.Code),
-				errorMsg: C.CString(response.Status.ErrorMsg),
-			},
+			errorMsg:  C.CString(response.Error),
+			errorCode: C.int(response.ErrorCode),
 		}
 	}
 
-	replyContent := C.MainAppReplyContent{
+	replyContent := C.ReplyContent{
 		fileSize:   C.int64_t(response.MainAppInfo.ReplyContent.FileSize),
-		fileName:   C.CString(response.MainAppInfo.ReplyContent.FileName),
-		fileType:   C.CString(response.MainAppInfo.ReplyContent.FileType),
-		appContent: C.CString(string(response.MainAppInfo.ReplyContent.AppContent)),
+		appContent: C.CString(response.MainAppInfo.ReplyContent.AppContent),
 		version:    C.CString(response.MainAppInfo.ReplyContent.Version),
 		blVersion:  C.CString(response.MainAppInfo.ReplyContent.BLVersion),
 	}
