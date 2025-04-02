@@ -41,7 +41,7 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 		default:
 			var req models.Request
 			if err := decoder.Decode(&req); err != nil {
-				log.Printf("[ERROR %d]Error decoding request: %v", models.ErrServerJSONUnmarshal, err)
+				log.Printf("Error decoding request: %v", err)
 				return
 			}
 
@@ -63,7 +63,7 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 
 			req.Station = *station
 			if isValidate, _ := server.ValidateStationInfo(&req, encoder); isValidate {
-				log.Printf("[ERROR %d]Invalid station information, closing connection", models.ErrClientInvalidStation)
+				log.Printf("Invalid station information, closing connection")
 				return
 			}
 
@@ -74,7 +74,7 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 
 			// 發送響應
 			if err := encoder.Encode(response); err != nil {
-				log.Printf("[ERROR %d]Error encoding response: %v", models.ErrServerJSONMarshal, err)
+				log.Printf("Error encoding response: %v", err)
 				return
 			}
 
@@ -161,7 +161,7 @@ func main() {
 	// 加載 TLS 證書
 	cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 	if err != nil {
-		log.Fatalf("[ERROR %d]Failed to load TLS certificates: %v", models.ErrServerTimeoutTLSLoad, err)
+		log.Fatal(err)
 	}
 
 	tlsConfig := &tls.Config{
@@ -171,7 +171,7 @@ func main() {
 	// 啟動服務器
 	listener, err := tls.Listen("tcp", cfg.ServerPort, tlsConfig)
 	if err != nil {
-		log.Fatalf("[ERROR %d] Failed to start server: %v", models.ErrServerTimeoutStart, err)
+		log.Fatal(err)
 	}
 	defer listener.Close()
 
@@ -194,7 +194,7 @@ func main() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				log.Printf("[ERROR %d] Error accepting connection: %v", models.ErrServerConnectionAccept, err)
+				log.Printf("Error accepting connection: %v", err)
 				break
 			}
 
