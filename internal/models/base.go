@@ -35,6 +35,15 @@ type Response struct {
 	Status      Status          `json:"status"`
 }
 
+type ProcessRequest struct {
+	TimeStamp       string     `json:"timeStamp"`
+	AskId           string     `json:"askId"`
+	AskContent      AskContent `json:"askContent"`
+	Station         Station    `json:"station"`
+	MsgValidateCode string     `json:"msgValidateCode"`
+	SourcePath      string     `json:"sourcePath"`
+}
+
 const (
 	// Server 端錯誤 (1xxx)
 	ErrServerJSONMarshal         = 1001 // JSON 序列化錯誤

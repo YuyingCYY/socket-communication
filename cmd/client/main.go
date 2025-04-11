@@ -41,7 +41,6 @@ typedef struct {
 	char* timeStampClient;
 	char* timeStampServer;
 	char* serverVersion;
-	char* replyStauts;
 	char* msgValidateCode;
 	MainAppReplyContent replyContent;
 	Status status;
@@ -254,6 +253,16 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 		}
 	}
 
+	// 代碼不為`0`皆為錯誤碼
+	if response.Status.Code != 0 {
+		return C.MainAppInfo{
+			status: C.Status{
+				code:     C.int(response.Status.Code),
+				errorMsg: C.CString(response.Status.ErrorMsg),
+			},
+		}
+	}
+
 	if response.Status.ErrorMsg != "" {
 		return C.MainAppInfo{
 			status: C.Status{
@@ -261,6 +270,11 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 				errorMsg: C.CString(response.Status.ErrorMsg),
 			},
 		}
+	}
+
+	// 成功僅回傳 code
+	status := C.Status{
+		code: C.int(response.Status.Code),
 	}
 
 	replyContent := C.MainAppReplyContent{
@@ -277,9 +291,9 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 		timeStampClient: C.CString(response.MainAppInfo.TimeStampClient),
 		timeStampServer: C.CString(response.MainAppInfo.TimeStampServer),
 		serverVersion:   C.CString(response.MainAppInfo.ServerVersion),
-		replyStauts:     C.CString(response.MainAppInfo.ReplyStatus),
 		msgValidateCode: C.CString(response.MainAppInfo.MsgValidateCode),
 		replyContent:    replyContent,
+		status:          status,
 	}
 }
 
