@@ -8,9 +8,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
+	"github.com/go-co-op/gocron"
 	"github.com/socket-communication/internal/config"
 	"github.com/socket-communication/internal/logger"
 	"github.com/socket-communication/internal/models"
@@ -30,6 +33,7 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
 
+	var station *models.Station
 	for {
 		select {
 		case <-ctx.Done():
@@ -37,11 +41,9 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 		default:
 			var req models.Request
 			if err := decoder.Decode(&req); err != nil {
-				log.Printf("Error decoding request: %v", err)
+				log.Printf("[ERROR %d]Error decoding request: %v", models.ErrServerJSONUnmarshal, err)
 				return
 			}
-
-			log.Printf("Received request: %+v", req)
 
 			// 檢查是否為斷開連接
 			if req.Command == "disconnect" {
@@ -49,20 +51,30 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				return
 			}
 
-			// 檢查連接站點訊息
+			// 檢查第一次連接站點訊息並保存
 			if req.Command == "connect" {
-				if server.ValidateStationInfo(&req, encoder) {
+				if isValidate, s := server.ValidateStationInfo(&req, encoder); isValidate {
 					log.Printf("Invalid station information, closing connection")
 					return
+				} else {
+					station = s
 				}
 			}
+
+			req.Station = *station
+			if isValidate, _ := server.ValidateStationInfo(&req, encoder); isValidate {
+				log.Printf("[ERROR %d]Invalid station information, closing connection", models.ErrClientInvalidStation)
+				return
+			}
+
+			log.Printf("Received request: %+v", req)
 
 			// 處理請求並生成響應
 			response := processRequest(req, basePath)
 
 			// 發送響應
 			if err := encoder.Encode(response); err != nil {
-				log.Printf("Error encoding response: %v", err)
+				log.Printf("[ERROR %d]Error encoding response: %v", models.ErrServerJSONMarshal, err)
 				return
 			}
 
@@ -89,10 +101,53 @@ func processRequest(req models.Request, basePath string) models.Response {
 	case "MainApp":
 		return server.ProcessMainAppRequest(req, basePath)
 	default:
+		status := models.Status{
+			Code:     models.ErrClientInvalidAskId,
+			ErrorMsg: "Invalid askId",
+		}
 		return models.Response{
-			Error: "Invalid askId",
+			Status: status,
 		}
 	}
+}
+
+// 定時刪除排程
+func runDeleteFilesScheduledTask(requestPath string) {
+	sch := gocron.NewScheduler(time.Local)
+	// 每天凌晨0點0分執行
+	cronExp := "0 0 * * *"
+	_, err := sch.Cron(cronExp).StartImmediately().Do(
+		func(dirPath string) {
+			err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
+				if !info.IsDir() {
+					err = os.Remove(path)
+					if err != nil {
+						return err
+					}
+					log.Printf("Deleted file: %s\n", path)
+				}
+
+				return nil
+			})
+
+			if err != nil {
+				log.Printf("Error deleting files: %v", err)
+			} else {
+				log.Printf("All files deleted successfully.")
+			}
+		}, requestPath,
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	// start the job in another goroutine
+	sch.StartAsync()
 }
 
 func main() {
@@ -104,10 +159,13 @@ func main() {
 		panic(err)
 	}
 
+	// 啟動刪除檔案排程
+	runDeleteFilesScheduledTask(cfg.RequestPath)
+
 	// 加載 TLS 證書
 	cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %d]Failed to load TLS certificates: %v", models.ErrServerTimeoutTLSLoad, err)
 	}
 
 	tlsConfig := &tls.Config{
@@ -117,7 +175,7 @@ func main() {
 	// 啟動服務器
 	listener, err := tls.Listen("tcp", cfg.ServerPort, tlsConfig)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[ERROR %d] Failed to start server: %v", models.ErrServerTimeoutStart, err)
 	}
 	defer listener.Close()
 
@@ -140,7 +198,7 @@ func main() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				log.Printf("Error accepting connection: %v", err)
+				log.Printf("[ERROR %d] Error accepting connection: %v", models.ErrServerConnectionAccept, err)
 				break
 			}
 

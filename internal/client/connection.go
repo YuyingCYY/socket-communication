@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/socket-communication/internal/models"
 )
 
 type TLSClient struct {
@@ -41,13 +43,13 @@ func (c *TLSClient) InitConnection() error {
 	// 加載 CA 證書
 	caCert, err := os.ReadFile("server.crt")
 	if err != nil {
-		return fmt.Errorf("failed to read CA certificate: %v", err)
+		return fmt.Errorf("[ERROR %d] failed to read CA certificate: %v", models.ErrClientReadCACertFailed, err)
 	}
 
-	// 創建 CA 證書池
+	// 創建 CA 證書池，接受自簽憑證
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caCert) {
-		return fmt.Errorf("failed to parse CA certificate")
+		return fmt.Errorf("[ERROR %d] failed to parse CA certificate", models.ErrClientParseCACertFailed)
 	}
 
 	// 配置 TLS
@@ -58,7 +60,7 @@ func (c *TLSClient) InitConnection() error {
 	// 建立 TLS 連接
 	c.conn, err = tls.Dial("tcp", serverAddr, config)
 	if err != nil {
-		return fmt.Errorf("failed to establish TLS connection: %v", err)
+		return fmt.Errorf("[ERROR %d] failed to establish TLS connection: %v", models.ErrClientTLSConnectionFailed, err)
 	}
 
 	return nil
@@ -85,14 +87,14 @@ func (c *TLSClient) SendRequest(req interface{}) (*json.Decoder, error) {
 	// 檢查連接狀態
 	if c.conn == nil {
 		if err := c.InitConnection(); err != nil {
-			return nil, fmt.Errorf("failed to initialize connection: %v", err)
+			return nil, fmt.Errorf("[ERROR %d] failed to initialize connection: %v", models.ErrClientConnectionInitFailed, err)
 		}
 	}
 
 	// 發送請求
 	encoder := json.NewEncoder(c.conn)
 	if err := encoder.Encode(req); err != nil {
-		return nil, fmt.Errorf("failed to encode request: %v", err)
+		return nil, fmt.Errorf("[ERROR %d] failed to encode request: %v", models.ErrClientRequestSendFailed, err)
 	}
 
 	// 返回解碼器

@@ -6,12 +6,18 @@ package main
 
 // 定義結構體（與 Go 中的定義一致）
 typedef struct {
+	int code;
+	char* errorMsg;
+} Status;
+
+typedef struct {
 	char* fileName;
 	char* filePath;
 	int64_t fileSize;
 	char* fileContent;
 	size_t fileContentSize;
 	char* errorMsg;
+	int errorCode;
 } BinFileInfo;
 
 typedef struct {
@@ -22,20 +28,27 @@ typedef struct {
 } ReplyContent;
 
 typedef struct {
+	char* fileName;
+	int64_t fileSize;
+	char* fileType;
+	char* appContent;
+	char* version;
+	char* blVersion;
+} MainAppReplyContent;
+
+typedef struct {
 	char* askReplyId;
 	char* timeStampClient;
 	char* timeStampServer;
 	char* serverVersion;
-	char* replyStauts;
 	char* msgValidateCode;
-	ReplyContent replyContent;
-	char* errorMsg;
+	MainAppReplyContent replyContent;
+	Status status;
 } MainAppInfo;
 
 */
 import "C"
 import (
-	"encoding/json"
 	"strconv"
 	"time"
 	"unsafe"
@@ -45,10 +58,13 @@ import (
 )
 
 //export InitConnection
-func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.char {
+func InitConnection(stationType, stationName, stationId, operatorId *C.char) C.Status {
 	err := client.GetClient().InitConnection()
 	if err != nil {
-		return C.CString(err.Error())
+		return C.Status{
+			code:     models.ErrClientConnectionInitFailed, // 初始化連接失敗通常與 TLS 相關
+			errorMsg: C.CString(err.Error()),
+		}
 	}
 
 	request := models.Request{
@@ -62,34 +78,33 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.
 	}
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
-		response := models.Response{
-			Error: err.Error(),
+		return C.Status{
+			code:     models.ErrClientRequestSendFailed,
+			errorMsg: C.CString(err.Error()),
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString("Error:" + string(jsonResponse))
 	}
 
-	var response models.Response
+	var response models.Status
 	if err := decoder.Decode(&response); err != nil {
-		return C.CString("Error: " + err.Error())
+		return C.Status{
+			code:     models.ErrClientResponseDecodeFailed,
+			errorMsg: C.CString(err.Error()),
+		}
 	}
 
-	if response.Error != "" {
-		return C.CString("Error: " + response.Error)
+	return C.Status{
+		code: 0,
 	}
-
-	return C.CString("Initialize successfully")
 }
 
 //export CloseConnection
-func CloseConnection() *C.char {
+func CloseConnection() C.Status {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
-		response := models.Response{
-			Error: "Not connected",
+		return C.Status{
+			code:     models.ErrClientNotConnected,
+			errorMsg: C.CString("Not connected"),
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString(string(jsonResponse))
 	}
 
 	request := models.Request{
@@ -97,22 +112,22 @@ func CloseConnection() *C.char {
 	}
 	_, err := client.GetClient().SendRequest(request)
 	if err != nil {
-		response := models.Response{
-			Error: err.Error(),
+		return C.Status{
+			code:     models.ErrClientRequestSendFailed,
+			errorMsg: C.CString(err.Error()),
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString(string(jsonResponse))
 	}
 
 	if err := client.GetClient().CloseConnection(); err != nil {
-		response := models.Response{
-			Error: err.Error(),
+		return C.Status{
+			code:     models.ErrClientConnectionCloseFailed,
+			errorMsg: C.CString(err.Error()),
 		}
-		jsonResponse, _ := json.Marshal(response)
-		return C.CString(string(jsonResponse))
 	}
 
-	return C.CString("disconnect")
+	return C.Status{
+		code: 0,
+	}
 }
 
 //export GetBinFileInfo
@@ -120,35 +135,48 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.BinFileInfo{
-			errorMsg: C.CString("Not connected"),
+			errorMsg:  C.CString("Not connected"),
+			errorCode: C.int(models.ErrClientNotConnected),
 		}
 	}
 
-	request := models.Request{
-		AskId:             C.GoString(askId),
+	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
+
+	// AskContent
+	askContent := models.AskContent{
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
-		IsGetBinFile:      true,
+	}
+
+	request := models.Request{
+		TimeStampClient: timeUnix,
+		AskId:           C.GoString(askId),
+		AskContent:      askContent,
+		IsGetBinFile:    true,
+		MsgValidateCode: "validateCode",
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.BinFileInfo{
-			errorMsg: C.CString(err.Error()),
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientRequestSendFailed),
 		}
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
 		return C.BinFileInfo{
-			errorMsg: C.CString(err.Error()),
+			errorMsg:  C.CString(err.Error()),
+			errorCode: C.int(models.ErrClientResponseDecodeFailed),
 		}
 	}
 
-	if response.Error != "" {
+	if response.Status.ErrorMsg != "" {
 		return C.BinFileInfo{
-			errorMsg: C.CString(response.Error),
+			errorMsg:  C.CString(response.Status.ErrorMsg),
+			errorCode: C.int(response.Status.Code),
 		}
 	}
 
@@ -182,43 +210,78 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.MainAppInfo{
-			errorMsg: C.CString("Not connected"),
+			status: C.Status{
+				code:     C.int(models.ErrClientNotConnected),
+				errorMsg: C.CString("Not connected"),
+			},
 		}
 	}
 
 	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
-	request := models.Request{
-		TimeStampClient:   timeUnix,
-		AskId:             "MainApp",
+
+	// AskContent
+	askContent := models.AskContent{
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
-		IsGetBinFile:      false,
+	}
+
+	request := models.Request{
+		TimeStampClient: timeUnix,
+		AskId:           "MainApp",
+		AskContent:      askContent,
+		IsGetBinFile:    false,
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.MainAppInfo{
-			errorMsg: C.CString(err.Error()),
+			status: C.Status{
+				code:     C.int(models.ErrClientRequestSendFailed),
+				errorMsg: C.CString(err.Error()),
+			},
 		}
 	}
 
 	var response models.Response
 	if err := decoder.Decode(&response); err != nil {
 		return C.MainAppInfo{
-			errorMsg: C.CString(err.Error()),
+			status: C.Status{
+				code:     C.int(models.ErrClientResponseDecodeFailed),
+				errorMsg: C.CString(err.Error()),
+			},
 		}
 	}
 
-	if response.Error != "" {
+	// 代碼不為`0`皆為錯誤碼
+	if response.Status.Code != 0 {
 		return C.MainAppInfo{
-			errorMsg: C.CString(response.Error),
+			status: C.Status{
+				code:     C.int(response.Status.Code),
+				errorMsg: C.CString(response.Status.ErrorMsg),
+			},
 		}
 	}
 
-	replyContent := C.ReplyContent{
+	if response.Status.ErrorMsg != "" {
+		return C.MainAppInfo{
+			status: C.Status{
+				code:     C.int(response.Status.Code),
+				errorMsg: C.CString(response.Status.ErrorMsg),
+			},
+		}
+	}
+
+	// 成功僅回傳 code
+	status := C.Status{
+		code: C.int(response.Status.Code),
+	}
+
+	replyContent := C.MainAppReplyContent{
 		fileSize:   C.int64_t(response.MainAppInfo.ReplyContent.FileSize),
-		appContent: C.CString(response.MainAppInfo.ReplyContent.AppContent),
+		fileName:   C.CString(response.MainAppInfo.ReplyContent.FileName),
+		fileType:   C.CString(response.MainAppInfo.ReplyContent.FileType),
+		appContent: C.CString(string(response.MainAppInfo.ReplyContent.AppContent)),
 		version:    C.CString(response.MainAppInfo.ReplyContent.Version),
 		blVersion:  C.CString(response.MainAppInfo.ReplyContent.BLVersion),
 	}
@@ -228,9 +291,9 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 		timeStampClient: C.CString(response.MainAppInfo.TimeStampClient),
 		timeStampServer: C.CString(response.MainAppInfo.TimeStampServer),
 		serverVersion:   C.CString(response.MainAppInfo.ServerVersion),
-		replyStauts:     C.CString(response.MainAppInfo.ReplyStatus),
 		msgValidateCode: C.CString(response.MainAppInfo.MsgValidateCode),
 		replyContent:    replyContent,
+		status:          status,
 	}
 }
 
