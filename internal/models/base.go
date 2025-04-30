@@ -68,4 +68,5 @@ const (
 	ErrClientReadCACertFailed      = 2008 // 讀取 CA 證書失敗
 	ErrClientParseCACertFailed     = 2009 // 解析 CA 證書失敗
 	ErrClientTLSConnectionFailed   = 2010 // 建立 TLS 連接失敗
+	ErrClientCertLoadFailed        = 2011 // 加載 CA 證書失敗
 )

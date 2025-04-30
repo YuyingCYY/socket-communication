@@ -11,16 +11,6 @@ typedef struct {
 } Status;
 
 typedef struct {
-	char* fileName;
-	char* filePath;
-	int64_t fileSize;
-	char* fileContent;
-	size_t fileContentSize;
-	char* errorMsg;
-	int errorCode;
-} BinFileInfo;
-
-typedef struct {
 	int64_t fileSize;
 	char* appContent;
 	char* version;
@@ -51,7 +41,6 @@ import "C"
 import (
 	"strconv"
 	"time"
-	"unsafe"
 
 	"github.com/socket-communication/internal/client"
 	"github.com/socket-communication/internal/models"
@@ -59,10 +48,10 @@ import (
 
 //export InitConnection
 func InitConnection(stationType, stationName, stationId, operatorId *C.char) C.Status {
-	err := client.GetClient().InitConnection()
+	errCode, err := client.GetClient().InitConnection()
 	if err != nil {
 		return C.Status{
-			code:     models.ErrClientConnectionInitFailed, // 初始化連接失敗通常與 TLS 相關
+			code:     C.int(errCode), // 初始化連接失敗通常與 TLS 相關
 			errorMsg: C.CString(err.Error()),
 		}
 	}
@@ -127,81 +116,6 @@ func CloseConnection() C.Status {
 
 	return C.Status{
 		code: 0,
-	}
-}
-
-//export GetBinFileInfo
-func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char) C.BinFileInfo {
-	// 檢查是否已連線
-	if !client.GetClient().IsConnected() {
-		return C.BinFileInfo{
-			errorMsg:  C.CString("Not connected"),
-			errorCode: C.int(models.ErrClientNotConnected),
-		}
-	}
-
-	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
-
-	// AskContent
-	askContent := models.AskContent{
-		ProductSeries:     C.GoString(productSeries),
-		ApplicableProject: C.GoString(applicableProject),
-		CustomizeId:       C.GoString(customizeId),
-	}
-
-	request := models.Request{
-		TimeStampClient: timeUnix,
-		AskId:           C.GoString(askId),
-		AskContent:      askContent,
-		IsGetBinFile:    true,
-		MsgValidateCode: "validateCode",
-	}
-
-	decoder, err := client.GetClient().SendRequest(request)
-	if err != nil {
-		return C.BinFileInfo{
-			errorMsg:  C.CString(err.Error()),
-			errorCode: C.int(models.ErrClientRequestSendFailed),
-		}
-	}
-
-	var response models.Response
-	if err := decoder.Decode(&response); err != nil {
-		return C.BinFileInfo{
-			errorMsg:  C.CString(err.Error()),
-			errorCode: C.int(models.ErrClientResponseDecodeFailed),
-		}
-	}
-
-	if response.Status.ErrorMsg != "" {
-		return C.BinFileInfo{
-			errorMsg:  C.CString(response.Status.ErrorMsg),
-			errorCode: C.int(response.Status.Code),
-		}
-	}
-
-	return C.BinFileInfo{
-		fileName:        C.CString(response.FileInfo.FileName),
-		filePath:        C.CString(response.FileInfo.FilePath),
-		fileSize:        C.int64_t(response.FileInfo.FileSize),
-		fileContent:     C.CString(string(response.FileInfo.FileContent)),
-		fileContentSize: C.size_t(len(response.FileInfo.FileContent)),
-	}
-}
-
-//export FreeBinFileInfo
-func FreeBinFileInfo(info C.BinFileInfo) {
-	if info.fileName != nil {
-		C.free(unsafe.Pointer(info.fileName))
-	}
-	if info.filePath != nil {
-		C.free(unsafe.Pointer(info.filePath))
-	}
-	if info.fileContent != nil {
-		C.free(unsafe.Pointer(info.fileContent))
-	}
-	if info.errorMsg != nil {
-		C.free(unsafe.Pointer(info.errorMsg))
 	}
 }
 
