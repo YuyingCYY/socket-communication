@@ -24,15 +24,14 @@ type Request struct {
 	TimeStampClient string     `json:"timeStampClient"`
 	AskId           string     `json:"askId"`
 	AskContent      AskContent `json:"askContent"`
-	IsGetBinFile    bool       `json:"isGetBinFile"`
 	Station         Station    `json:"station"`
 	MsgValidateCode string     `json:"msgValidateCode"`
 }
 
 type Response struct {
-	FileInfo    FileResponse    `json:"fileInfo"`
-	MainAppInfo MainAppResponse `json:"MainAppInfo"`
-	Status      Status          `json:"status"`
+	MainAppInfo        MainAppResponse        `json:"MainAppInfo"`
+	ParameterTableInfo ParameterTableResponse `json:"parameterTableInfo"`
+	Status             Status                 `json:"status"`
 }
 
 type ProcessRequest struct {

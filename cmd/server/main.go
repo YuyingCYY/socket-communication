@@ -96,6 +96,10 @@ func processRequest(req models.Request, basePath string) models.Response {
 	switch req.AskId {
 	case "MainApp":
 		return server.ProcessMainAppRequest(req, basePath)
+	case "ParameterTable":
+		return server.ProcessParameterTable(req, basePath)
+	case "FaultLog":
+		return server.ProcessFaultLogRequest(req, basePath)
 	default:
 		status := models.Status{
 			Code:     models.ErrClientInvalidAskId,
