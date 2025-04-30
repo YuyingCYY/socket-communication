@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"log"
 	"net"
@@ -86,11 +87,6 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 
 // 根據請求類型處理請求並返回適當的響應
 func processRequest(req models.Request, basePath string) models.Response {
-	// 文件檔案處理
-	if req.IsGetBinFile {
-		return server.ProcessFileRequest(req, basePath)
-	}
-
 	// 處理連接命令
 	if req.Command == "connect" {
 		return models.Response{}
@@ -168,8 +164,17 @@ func main() {
 		log.Fatalf("[ERROR %d]Failed to load TLS certificates: %v", models.ErrServerTimeoutTLSLoad, err)
 	}
 
+	caCert, err := os.ReadFile(cfg.CertFile)
+	if err != nil {
+		log.Fatalf("Failed to read CA cert: %v", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caCertPool,
 	}
 
 	// 啟動服務器
