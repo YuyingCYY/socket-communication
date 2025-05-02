@@ -38,7 +38,7 @@ typedef struct {
 	char* fileName;
 	int64_t fileSize;
 	char* fileType;
-	char* appContent;
+	char* parameterContent;
 	char* version;
 	char* blVersion;
 	int shieldedZoneCount;
@@ -76,7 +76,7 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) C.S
 	}
 
 	request := models.Request{
-		Command: "connect",
+		Command: models.Connect,
 		Station: models.Station{
 			StationType: C.GoString(stationType),
 			StationName: C.GoString(stationName),
@@ -116,7 +116,7 @@ func CloseConnection() C.Status {
 	}
 
 	request := models.Request{
-		Command: "disconnect",
+		Command: models.Disconnect,
 	}
 	_, err := client.GetClient().SendRequest(request)
 	if err != nil {
@@ -160,6 +160,7 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	}
 
 	request := models.Request{
+		Command:         models.Download,
 		TimeStampClient: timeUnix,
 		AskId:           "MainApp",
 		AskContent:      askContent,
@@ -251,6 +252,7 @@ func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char
 	}
 
 	request := models.Request{
+		Command:         models.Download,
 		TimeStampClient: timeUnix,
 		AskId:           "ParameterTable",
 		AskContent:      askContent,
@@ -312,7 +314,7 @@ func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char
 		fileSize:          C.int64_t(response.ParameterTableInfo.ReplyContent.FileSize),
 		fileName:          C.CString(response.ParameterTableInfo.ReplyContent.FileName),
 		fileType:          C.CString(response.ParameterTableInfo.ReplyContent.FileType),
-		appContent:        C.CString(string(response.ParameterTableInfo.ReplyContent.AppContent)),
+		parameterContent:  C.CString(string(response.ParameterTableInfo.ReplyContent.ParameterContent)),
 		version:           C.CString(response.ParameterTableInfo.ReplyContent.Version),
 		blVersion:         C.CString(response.ParameterTableInfo.ReplyContent.BLVersion),
 		shieldedZoneCount: C.int(response.ParameterTableInfo.ReplyContent.ShieldedZoneCount),

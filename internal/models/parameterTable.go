@@ -9,7 +9,7 @@ type ParameterTableReplyContent struct {
 	FileName          string         `json:"fileName"`
 	FileSize          int64          `json:"fileSize"`
 	FileType          string         `json:"fileType"`
-	AppContent        []byte         `json:"appContent"`
+	ParameterContent  []byte         `json:"parameterContent"`
 	Version           string         `json:"version"`
 	BLVersion         string         `json:"blVersion"`
 	ShieldedZoneCount int            `json:"shieldedZoneCount"`

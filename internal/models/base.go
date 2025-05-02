@@ -19,8 +19,17 @@ type AskContent struct {
 	CustomizeId       string `json:"customizeId"`
 }
 
+type Command string
+
+const (
+	Connect    Command = "connect"
+	Disconnect Command = "disconnect"
+	Download   Command = "download"
+	Upload     Command = "upload"
+)
+
 type Request struct {
-	Command         string     `json:"command"`
+	Command         Command    `json:"command"`
 	TimeStampClient string     `json:"timeStampClient"`
 	AskId           string     `json:"askId"`
 	AskContent      AskContent `json:"askContent"`
@@ -35,6 +44,7 @@ type Response struct {
 }
 
 type ProcessRequest struct {
+	Command         Command    `json:"command"`
 	TimeStamp       string     `json:"timeStamp"`
 	AskId           string     `json:"askId"`
 	AskContent      AskContent `json:"askContent"`

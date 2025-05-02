@@ -14,6 +14,7 @@ import (
 	"github.com/socket-communication/internal/models"
 )
 
+// 檢查請求中站點資訊是否合法。資訊不完整回應 true, nil;完整回傳 false 及站點資訊
 func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *models.Station) {
 	if req.Station.StationName == "" || req.Station.StationType == "" || req.Station.StationId == "" || req.Station.OperatorId == "" {
 
@@ -30,28 +31,35 @@ func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *mod
 	return false, &req.Station
 }
 
+// 處理主程式請求
 func ProcessMainAppRequest(req models.Request, basePath string) models.Response {
 	return processRequestBase(req, basePath, ".bin", mainAppHandler)
 }
 
+// 處理參數表請求
 func ProcessParameterTable(req models.Request, basePath string) models.Response {
 	return processRequestBase(req, basePath, ".data", parameterTableHandler)
 }
 
+// 處理故障表請求
 func ProcessFaultLogRequest(req models.Request, basePath string) models.Response {
 	return models.Response{}
 }
 
+// 為請求建立檔案、監控回應並處理，適用不同的檔案類型
 func processRequestBase(
 	req models.Request,
 	basePath string,
 	fileExt string,
 	handler models.FileResponseHandler,
 ) models.Response {
+	// 唯一請求 ID
 	reqUUID := uuid.New().String()
+	// 設定 10 秒逾時 context
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// 建立來源路徑與請求內容
 	sourcePath := buildSourcePath(req.AskContent)
 	processReq := buildProcessRequest(req, sourcePath)
 	processReqData, err := json.Marshal(processReq)
@@ -65,6 +73,7 @@ func processRequestBase(
 		}
 	}
 
+	// 準備請求與回應目錄
 	reqDirPath := filepath.Join(basePath, "requests")
 	respDirPath := filepath.Join(basePath, "responses")
 	if err := ensureDirs(reqDirPath, respDirPath); err != nil {
@@ -77,6 +86,7 @@ func processRequestBase(
 		}
 	}
 
+	// 寫入請求檔案
 	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
 	if err := writeRequestFile(reqFilePath, processReqData); err != nil {
 		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
@@ -87,14 +97,18 @@ func processRequestBase(
 			},
 		}
 	}
+	// 請求結束後自動清理臨時檔案
 	defer cleanupFiles(reqFilePath)
 
+	// 準備回應檔案路徑
 	respJsonFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.json", reqUUID))
 	respFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s%s", reqUUID, fileExt))
 
+	// 建立回應通道並啟動監控協程
 	resultCh := make(chan models.Response, 1)
 	go monitorResponseFilesGeneric(ctx, respJsonFilePath, respFilePath, req, resultCh, handler)
 
+	// 等待回應或逾時
 	select {
 	case result := <-resultCh:
 		return result
@@ -109,6 +123,7 @@ func processRequestBase(
 	}
 }
 
+// 監控回應檔案，確保同時獲取 JSON 及資料檔案後，呼叫 handler 處理並回傳結果。
 func monitorResponseFilesGeneric(
 	ctx context.Context,
 	jsonPath, dataPath string,
@@ -133,7 +148,7 @@ func monitorResponseFilesGeneric(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// 檢查JSON檔案
+			// 檢查 JSON 檔案是否存在且可讀取
 			if jsonData == nil {
 				jsonFileInfo, jsonErr = os.Stat(jsonPath)
 				if jsonErr == nil && !jsonFileInfo.IsDir() {
@@ -144,7 +159,7 @@ func monitorResponseFilesGeneric(
 					}
 				}
 			}
-			// 檢查資料檔案
+			// 檢查資料檔案是否存在且可讀取
 			if data == nil {
 				dataFileInfo, dataErr = os.Stat(dataPath)
 				if dataErr == nil && !dataFileInfo.IsDir() {
@@ -155,7 +170,7 @@ func monitorResponseFilesGeneric(
 					}
 				}
 			}
-			// 兩檔案都到齊
+			//  兩檔案皆取得後，執行 handler 並回傳結果
 			if jsonData != nil && data != nil {
 				resultCh <- handler(jsonData, data, jsonFileInfo, dataFileInfo, req)
 				return
@@ -164,13 +179,14 @@ func monitorResponseFilesGeneric(
 	}
 }
 
-// 監控回應檔案 - 確保同時獲取JSON和BIN檔案
+// 處理主應用程式回應檔案，將資料組裝成 MainAppResponse 結構。
 func mainAppHandler(
 	jsonData, binData []byte,
 	jsonFileInfo, binFileInfo os.FileInfo,
 	req models.Request,
 ) models.Response {
 	var status models.Status
+	// 解析 JSON 取得狀態
 	if err := json.Unmarshal(jsonData, &status); err != nil {
 		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
@@ -180,11 +196,13 @@ func mainAppHandler(
 			},
 		}
 	}
+	// 若狀態碼非 0，直接回傳錯誤
 	if status.Code != 0 {
 		log.Printf("[ERROR %d] Server returned error: %s", status.Code, status.ErrorMsg)
 		return models.Response{Status: status}
 	}
 	var replyContent models.MainAppReplyContent
+	// 解析 JSON 取得回應內容
 	if err := json.Unmarshal(jsonData, &replyContent); err != nil {
 		log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
@@ -194,6 +212,7 @@ func mainAppHandler(
 			},
 		}
 	}
+	// 補充檔案相關資訊
 	replyContent.FileName = binFileInfo.Name()
 	replyContent.FileSize = binFileInfo.Size()
 	replyContent.FileType = ".bin"
@@ -213,13 +232,14 @@ func mainAppHandler(
 	}
 }
 
-// 監控回應檔案 - 確保同時獲取JSON和BIN檔案
+// 處理參數表回應檔案，將資料組裝成 ParameterTableResponse 結構。
 func parameterTableHandler(
 	jsonData, dataData []byte,
 	jsonFileInfo, dataFileInfo os.FileInfo,
 	req models.Request,
 ) models.Response {
 	var status models.Status
+	// 解析 JSON 取得狀態
 	if err := json.Unmarshal(jsonData, &status); err != nil {
 		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
@@ -229,11 +249,13 @@ func parameterTableHandler(
 			},
 		}
 	}
+	// 若狀態碼非 0，直接回傳錯誤
 	if status.Code != 0 {
 		log.Printf("[ERROR %d] Server returned error: %s", status.Code, status.ErrorMsg)
 		return models.Response{Status: status}
 	}
 	var replyContent models.ParameterTableReplyContent
+	// 解析 JSON 取得回應內容
 	if err := json.Unmarshal(jsonData, &replyContent); err != nil {
 		log.Printf("[ERROR %d] Error unmarshaling JSON data into ParameterTableReplyContent: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
@@ -243,13 +265,14 @@ func parameterTableHandler(
 			},
 		}
 	}
+	// 補充檔案相關資訊
 	replyContent.FileName = dataFileInfo.Name()
 	replyContent.FileSize = dataFileInfo.Size()
 	replyContent.FileType = ".data"
-	replyContent.AppContent = dataData
+	replyContent.ParameterContent = dataData
 
 	parameterTableResponse := models.ParameterTableResponse{
-		AskReplyId:      "MainApp",
+		AskReplyId:      "ParameterTable",
 		TimeStampClient: req.TimeStampClient,
 		TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
 		ServerVersion:   "1.0.0",
@@ -262,16 +285,20 @@ func parameterTableHandler(
 	}
 }
 
+// buildSourcePath 根據 AskContent 組合出來源路徑字串。
 func buildSourcePath(askContent models.AskContent) string {
 	if askContent.CustomizeId != "" {
+		// 若 CustomizeId 存在，會加上 customize 子目錄。
 		return fmt.Sprintf("\\%s\\%s\\customize\\%s", askContent.ProductSeries, askContent.ApplicableProject, askContent.CustomizeId)
 	} else {
 		return fmt.Sprintf("\\%s\\%s", askContent.ProductSeries, askContent.ApplicableProject)
 	}
 }
 
+// 組合 ProcessRequest 結構，將請求資訊與來源路徑封裝。
 func buildProcessRequest(req models.Request, sourcePath string) models.ProcessRequest {
 	return models.ProcessRequest{
+		Command:         req.Command,
 		TimeStamp:       req.TimeStampClient,
 		AskId:           req.AskId,
 		AskContent:      req.AskContent,
@@ -281,6 +308,7 @@ func buildProcessRequest(req models.Request, sourcePath string) models.ProcessRe
 	}
 }
 
+// 確保所有指定目錄皆存在，若不存在則建立。
 func ensureDirs(dirs ...string) error {
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -290,11 +318,12 @@ func ensureDirs(dirs ...string) error {
 	return nil
 }
 
+// 將資料寫入指定檔案路徑
 func writeRequestFile(filePath string, data []byte) error {
 	return os.WriteFile(filePath, data, 0644)
 }
 
-// 清理臨時檔案
+// 清理指定的臨時檔案，若檔案不存在則略過。
 func cleanupFiles(files ...string) {
 	for _, file := range files {
 		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
