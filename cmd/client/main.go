@@ -6,8 +6,8 @@ package main
 
 // 定義結構體（與 Go 中的定義一致）
 typedef struct {
-	int code;
-	char* errorMsg;
+	int errCode;
+	char* errDesc;
 } Status;
 
 typedef struct {
@@ -70,38 +70,36 @@ func InitConnection(stationType, stationName, stationId, operatorId *C.char) C.S
 	errCode, err := client.GetClient().InitConnection()
 	if err != nil {
 		return C.Status{
-			code:     C.int(errCode), // 初始化連接失敗通常與 TLS 相關
-			errorMsg: C.CString(err.Error()),
+			errCode: C.int(errCode), // 初始化連接失敗通常與 TLS 相關
+			errDesc: C.CString(err.Error()),
 		}
 	}
 
 	request := models.Request{
-		Command: models.Connect,
-		Station: models.Station{
-			StationType: C.GoString(stationType),
-			StationName: C.GoString(stationName),
-			StationId:   C.GoString(stationId),
-			OperatorId:  C.GoString(operatorId),
-		},
+		Command:     models.Connect,
+		StationType: C.GoString(stationType),
+		StationName: C.GoString(stationName),
+		StationId:   C.GoString(stationId),
+		OperatorId:  C.GoString(operatorId),
 	}
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.Status{
-			code:     models.ErrClientRequestSendFailed,
-			errorMsg: C.CString(err.Error()),
+			errCode: models.ErrClientRequestSendFailed,
+			errDesc: C.CString(err.Error()),
 		}
 	}
 
 	var response models.Status
 	if err := decoder.Decode(&response); err != nil {
 		return C.Status{
-			code:     models.ErrClientResponseDecodeFailed,
-			errorMsg: C.CString(err.Error()),
+			errCode: models.ErrClientResponseDecodeFailed,
+			errDesc: C.CString(err.Error()),
 		}
 	}
 
 	return C.Status{
-		code: 0,
+		errCode: 0,
 	}
 }
 
@@ -110,8 +108,8 @@ func CloseConnection() C.Status {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.Status{
-			code:     models.ErrClientNotConnected,
-			errorMsg: C.CString("Not connected"),
+			errCode: models.ErrClientNotConnected,
+			errDesc: C.CString("Not connected"),
 		}
 	}
 
@@ -121,20 +119,20 @@ func CloseConnection() C.Status {
 	_, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.Status{
-			code:     models.ErrClientRequestSendFailed,
-			errorMsg: C.CString(err.Error()),
+			errCode: models.ErrClientRequestSendFailed,
+			errDesc: C.CString(err.Error()),
 		}
 	}
 
 	if err := client.GetClient().CloseConnection(); err != nil {
 		return C.Status{
-			code:     models.ErrClientConnectionCloseFailed,
-			errorMsg: C.CString(err.Error()),
+			errCode: models.ErrClientConnectionCloseFailed,
+			errDesc: C.CString(err.Error()),
 		}
 	}
 
 	return C.Status{
-		code: 0,
+		errCode: 0,
 	}
 }
 
@@ -144,34 +142,29 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	if !client.GetClient().IsConnected() {
 		return C.MainAppInfo{
 			status: C.Status{
-				code:     C.int(models.ErrClientNotConnected),
-				errorMsg: C.CString("Not connected"),
+				errCode: C.int(models.ErrClientNotConnected),
+				errDesc: C.CString("Not connected"),
 			},
 		}
 	}
 
 	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
 
-	// AskContent
-	askContent := models.AskContent{
+	request := models.Request{
+		Command:           models.Download,
+		TimeStampClient:   timeUnix,
+		AskId:             "MainApp",
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
-	}
-
-	request := models.Request{
-		Command:         models.Download,
-		TimeStampClient: timeUnix,
-		AskId:           "MainApp",
-		AskContent:      askContent,
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.MainAppInfo{
 			status: C.Status{
-				code:     C.int(models.ErrClientRequestSendFailed),
-				errorMsg: C.CString(err.Error()),
+				errCode: C.int(models.ErrClientRequestSendFailed),
+				errDesc: C.CString(err.Error()),
 			},
 		}
 	}
@@ -180,34 +173,34 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	if err := decoder.Decode(&response); err != nil {
 		return C.MainAppInfo{
 			status: C.Status{
-				code:     C.int(models.ErrClientResponseDecodeFailed),
-				errorMsg: C.CString(err.Error()),
+				errCode: C.int(models.ErrClientResponseDecodeFailed),
+				errDesc: C.CString(err.Error()),
 			},
 		}
 	}
 
 	// 代碼不為`0`皆為錯誤碼
-	if response.Status.Code != 0 {
+	if response.Status.ErrCode != 0 {
 		return C.MainAppInfo{
 			status: C.Status{
-				code:     C.int(response.Status.Code),
-				errorMsg: C.CString(response.Status.ErrorMsg),
+				errCode: C.int(response.Status.ErrCode),
+				errDesc: C.CString(response.Status.ErrDesc),
 			},
 		}
 	}
 
-	if response.Status.ErrorMsg != "" {
+	if response.Status.ErrDesc != "" {
 		return C.MainAppInfo{
 			status: C.Status{
-				code:     C.int(response.Status.Code),
-				errorMsg: C.CString(response.Status.ErrorMsg),
+				errCode: C.int(response.Status.ErrCode),
+				errDesc: C.CString(response.Status.ErrDesc),
 			},
 		}
 	}
 
 	// 成功僅回傳 code
 	status := C.Status{
-		code: C.int(response.Status.Code),
+		errCode: C.int(response.Status.ErrCode),
 	}
 
 	replyContent := C.MainAppReplyContent{
@@ -236,34 +229,29 @@ func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char
 	if !client.GetClient().IsConnected() {
 		return C.ParameterTableInfo{
 			status: C.Status{
-				code:     C.int(models.ErrClientNotConnected),
-				errorMsg: C.CString("Not connected"),
+				errCode: C.int(models.ErrClientNotConnected),
+				errDesc: C.CString("Not connected"),
 			},
 		}
 	}
 
 	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
 
-	// AskContent
-	askContent := models.AskContent{
+	request := models.Request{
+		Command:           models.Download,
+		TimeStampClient:   timeUnix,
+		AskId:             "ParameterTable",
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
-	}
-
-	request := models.Request{
-		Command:         models.Download,
-		TimeStampClient: timeUnix,
-		AskId:           "ParameterTable",
-		AskContent:      askContent,
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
 	if err != nil {
 		return C.ParameterTableInfo{
 			status: C.Status{
-				code:     C.int(models.ErrClientRequestSendFailed),
-				errorMsg: C.CString(err.Error()),
+				errCode: C.int(models.ErrClientRequestSendFailed),
+				errDesc: C.CString(err.Error()),
 			},
 		}
 	}
@@ -272,34 +260,34 @@ func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char
 	if err := decoder.Decode(&response); err != nil {
 		return C.ParameterTableInfo{
 			status: C.Status{
-				code:     C.int(models.ErrClientResponseDecodeFailed),
-				errorMsg: C.CString(err.Error()),
+				errCode: C.int(models.ErrClientResponseDecodeFailed),
+				errDesc: C.CString(err.Error()),
 			},
 		}
 	}
 
 	// 代碼不為`0`皆為錯誤碼
-	if response.Status.Code != 0 {
+	if response.Status.ErrCode != 0 {
 		return C.ParameterTableInfo{
 			status: C.Status{
-				code:     C.int(response.Status.Code),
-				errorMsg: C.CString(response.Status.ErrorMsg),
+				errCode: C.int(response.Status.ErrCode),
+				errDesc: C.CString(response.Status.ErrDesc),
 			},
 		}
 	}
 
-	if response.Status.ErrorMsg != "" {
+	if response.Status.ErrDesc != "" {
 		return C.ParameterTableInfo{
 			status: C.Status{
-				code:     C.int(response.Status.Code),
-				errorMsg: C.CString(response.Status.ErrorMsg),
+				errCode: C.int(response.Status.ErrCode),
+				errDesc: C.CString(response.Status.ErrDesc),
 			},
 		}
 	}
 
 	// 成功僅回傳 code
 	status := C.Status{
-		code: C.int(response.Status.Code),
+		errCode: C.int(response.Status.ErrCode),
 	}
 
 	shieldedZone := response.ParameterTableInfo.ReplyContent.ShieldedZone

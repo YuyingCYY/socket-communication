@@ -62,7 +62,10 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				}
 			}
 
-			req.Station = *station
+			req.StationType = station.StationType
+			req.StationName = station.StationName
+			req.StationId = station.StationId
+			req.OperatorId = station.OperatorId
 			if isValidate, _ := server.ValidateStationInfo(&req, encoder); isValidate {
 				log.Printf("[ERROR %d]Invalid station information, closing connection", models.ErrClientInvalidStation)
 				return
@@ -102,8 +105,8 @@ func processRequest(req models.Request, basePath string) models.Response {
 		return server.ProcessFaultLogRequest(req, basePath)
 	default:
 		status := models.Status{
-			Code:     models.ErrClientInvalidAskId,
-			ErrorMsg: "Invalid askId",
+			ErrCode: models.ErrClientInvalidAskId,
+			ErrDesc: "Invalid askId",
 		}
 		return models.Response{
 			Status: status,

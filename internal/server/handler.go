@@ -16,11 +16,11 @@ import (
 
 // 檢查請求中站點資訊是否合法。資訊不完整回應 true, nil;完整回傳 false 及站點資訊
 func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *models.Station) {
-	if req.Station.StationName == "" || req.Station.StationType == "" || req.Station.StationId == "" || req.Station.OperatorId == "" {
+	if req.StationName == "" || req.StationType == "" || req.StationId == "" || req.OperatorId == "" {
 
 		response := models.Status{
-			Code:     models.ErrClientInvalidStation,
-			ErrorMsg: "Invalid station information",
+			ErrCode: models.ErrClientInvalidStation,
+			ErrDesc: "Invalid station information",
 		}
 		if err := encoder.Encode(response); err != nil {
 			log.Printf("[ERROR %d]Error encoding response: %v", models.ErrClientInvalidStation, err)
@@ -28,7 +28,12 @@ func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *mod
 		return true, nil
 	}
 
-	return false, &req.Station
+	return false, &models.Station{
+		StationType: req.StationType,
+		StationName: req.StationName,
+		StationId:   req.StationId,
+		OperatorId:  req.OperatorId,
+	}
 }
 
 // 處理主程式請求
@@ -60,15 +65,14 @@ func processRequestBase(
 	defer cancel()
 
 	// 建立來源路徑與請求內容
-	sourcePath := buildSourcePath(req.AskContent)
-	processReq := buildProcessRequest(req, sourcePath)
+	processReq := buildProcessRequest(req)
 	processReqData, err := json.Marshal(processReq)
 	if err != nil {
 		log.Printf("[ERROR %d] Error marshaling request: %v", models.ErrServerJSONMarshal, err)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerJSONMarshal,
-				ErrorMsg: fmt.Sprintf("Error marshaling request: %v", err),
+				ErrCode: models.ErrServerJSONMarshal,
+				ErrDesc: fmt.Sprintf("Error marshaling request: %v", err),
 			},
 		}
 	}
@@ -80,8 +84,8 @@ func processRequestBase(
 		log.Printf("[ERROR %d] Error creating directory: %v", models.ErrServerCreateDir, err)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerCreateDir,
-				ErrorMsg: fmt.Sprintf("Error creating directory: %v", err),
+				ErrCode: models.ErrServerCreateDir,
+				ErrDesc: fmt.Sprintf("Error creating directory: %v", err),
 			},
 		}
 	}
@@ -92,13 +96,11 @@ func processRequestBase(
 		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerWriteFile,
-				ErrorMsg: fmt.Sprintf("Error writing request file: %v", err),
+				ErrCode: models.ErrServerWriteFile,
+				ErrDesc: fmt.Sprintf("Error writing request file: %v", err),
 			},
 		}
 	}
-	// 請求結束後自動清理臨時檔案
-	defer cleanupFiles(reqFilePath)
 
 	// 準備回應檔案路徑
 	respJsonFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.json", reqUUID))
@@ -116,8 +118,8 @@ func processRequestBase(
 		log.Printf("[ERROR %d] Timeout waiting for response files", models.ErrServerTimeoutResponseFile)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerTimeoutResponseFile,
-				ErrorMsg: "Timeout waiting for response files",
+				ErrCode: models.ErrServerTimeoutResponseFile,
+				ErrDesc: "Timeout waiting for response files",
 			},
 		}
 	}
@@ -191,14 +193,14 @@ func mainAppHandler(
 		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerJSONUnmarshal,
-				ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
 			},
 		}
 	}
 	// 若狀態碼非 0，直接回傳錯誤
-	if status.Code != 0 {
-		log.Printf("[ERROR %d] Server returned error: %s", status.Code, status.ErrorMsg)
+	if status.ErrCode != 0 {
+		log.Printf("[ERROR %d] Server returned error: %s", status.ErrCode, status.ErrDesc)
 		return models.Response{Status: status}
 	}
 	var replyContent models.MainAppReplyContent
@@ -207,8 +209,8 @@ func mainAppHandler(
 		log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerJSONUnmarshal,
-				ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
 			},
 		}
 	}
@@ -244,14 +246,14 @@ func parameterTableHandler(
 		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerJSONUnmarshal,
-				ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
 			},
 		}
 	}
 	// 若狀態碼非 0，直接回傳錯誤
-	if status.Code != 0 {
-		log.Printf("[ERROR %d] Server returned error: %s", status.Code, status.ErrorMsg)
+	if status.ErrCode != 0 {
+		log.Printf("[ERROR %d] Server returned error: %s", status.ErrCode, status.ErrDesc)
 		return models.Response{Status: status}
 	}
 	var replyContent models.ParameterTableReplyContent
@@ -260,8 +262,8 @@ func parameterTableHandler(
 		log.Printf("[ERROR %d] Error unmarshaling JSON data into ParameterTableReplyContent: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
 			Status: models.Status{
-				Code:     models.ErrServerJSONUnmarshal,
-				ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data into ParameterTableReplyContent: %v", err),
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into ParameterTableReplyContent: %v", err),
 			},
 		}
 	}
@@ -285,26 +287,19 @@ func parameterTableHandler(
 	}
 }
 
-// buildSourcePath 根據 AskContent 組合出來源路徑字串。
-func buildSourcePath(askContent models.AskContent) string {
-	if askContent.CustomizeId != "" {
-		// 若 CustomizeId 存在，會加上 customize 子目錄。
-		return fmt.Sprintf("\\%s\\%s\\customize\\%s", askContent.ProductSeries, askContent.ApplicableProject, askContent.CustomizeId)
-	} else {
-		return fmt.Sprintf("\\%s\\%s", askContent.ProductSeries, askContent.ApplicableProject)
-	}
-}
-
 // 組合 ProcessRequest 結構，將請求資訊與來源路徑封裝。
-func buildProcessRequest(req models.Request, sourcePath string) models.ProcessRequest {
+func buildProcessRequest(req models.Request) models.ProcessRequest {
 	return models.ProcessRequest{
-		Command:         req.Command,
-		TimeStamp:       req.TimeStampClient,
-		AskId:           req.AskId,
-		AskContent:      req.AskContent,
-		Station:         req.Station,
-		MsgValidateCode: req.MsgValidateCode,
-		SourcePath:      sourcePath,
+		Command:           req.Command,
+		TimeStamp:         req.TimeStampClient,
+		AskId:             req.AskId,
+		ProductSeries:     req.ProductSeries,
+		ApplicableProject: req.ApplicableProject,
+		StationType:       req.StationType,
+		StationName:       req.StationName,
+		StationId:         req.StationId,
+		OperatorId:        req.OperatorId,
+		MsgValidateCode:   req.MsgValidateCode,
 	}
 }
 

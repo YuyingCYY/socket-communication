@@ -9,8 +9,8 @@ type Station struct {
 }
 
 type Status struct {
-	Code     int    `json:"code"`
-	ErrorMsg string `json:"errorMsg,omitempty"`
+	ErrCode int    `json:"errCode"`
+	ErrDesc string `json:"errDesc,omitempty"`
 }
 
 type AskContent struct {
@@ -29,12 +29,17 @@ const (
 )
 
 type Request struct {
-	Command         Command    `json:"command"`
-	TimeStampClient string     `json:"timeStampClient"`
-	AskId           string     `json:"askId"`
-	AskContent      AskContent `json:"askContent"`
-	Station         Station    `json:"station"`
-	MsgValidateCode string     `json:"msgValidateCode"`
+	Command           Command `json:"command"`
+	TimeStampClient   string  `json:"timeStampClient"`
+	AskId             string  `json:"askId"`
+	ProductSeries     string  `json:"productSeries"`
+	ApplicableProject string  `json:"applicableProject"`
+	CustomizeId       string  `json:"customizeId"`
+	StationType       string  `json:"stationType"`
+	StationName       string  `json:"stationName"`
+	StationId         string  `json:"stationId"`
+	OperatorId        string  `json:"operatorId"`
+	MsgValidateCode   string  `json:"msgValidateCode"`
 }
 
 type Response struct {
@@ -44,13 +49,17 @@ type Response struct {
 }
 
 type ProcessRequest struct {
-	Command         Command    `json:"command"`
-	TimeStamp       string     `json:"timeStamp"`
-	AskId           string     `json:"askId"`
-	AskContent      AskContent `json:"askContent"`
-	Station         Station    `json:"station"`
-	MsgValidateCode string     `json:"msgValidateCode"`
-	SourcePath      string     `json:"sourcePath"`
+	Command           Command `json:"command"`
+	TimeStamp         string  `json:"timeStamp"`
+	AskId             string  `json:"askId"`
+	ProductSeries     string  `json:"productSeries"`
+	ApplicableProject string  `json:"applicableProject"`
+	CustomizeId       string  `json:"customizeId"`
+	StationType       string  `json:"stationType"`
+	StationName       string  `json:"stationName"`
+	StationId         string  `json:"stationId"`
+	OperatorId        string  `json:"operatorId"`
+	MsgValidateCode   string  `json:"msgValidateCode"`
 }
 
 const (
