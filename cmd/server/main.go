@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -101,6 +103,8 @@ func processRequest(req models.Request, basePath string) models.Response {
 		return server.ProcessMainAppRequest(req, basePath)
 	case "ParameterTable":
 		return server.ProcessParameterTable(req, basePath)
+	case "SecurityZone":
+		return server.ProcessSecurityZone(req, basePath)
 	case "FaultLog":
 		return server.ProcessFaultLogRequest(req, basePath)
 	default:
@@ -163,7 +167,7 @@ func main() {
 	}
 
 	// 啟動刪除檔案排程
-	runDeleteFilesScheduledTask(cfg.RequestPath)
+	// runDeleteFilesScheduledTask(cfg.RequestPath)
 
 	// 加載 TLS 證書
 	cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
@@ -175,6 +179,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read CA cert: %v", err)
 	}
+
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
@@ -182,6 +187,25 @@ func main() {
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    caCertPool,
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			// 解析客戶端憑證
+			clientCert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return fmt.Errorf("憑證解析失敗: %v", err)
+			}
+
+			// 檢查指紋白名單，使用 %X 強制大寫
+			fingerprintHex := fmt.Sprintf("%X", sha256.Sum256(clientCert.Raw))
+			if fingerprintHex != cfg.AllowedClient {
+				log.Printf("非法憑證指紋: %s (CN=%s, SN=%s)",
+					fingerprintHex,
+					clientCert.Subject.CommonName,
+					clientCert.SerialNumber)
+				return fmt.Errorf("憑證未授權")
+			}
+
+			return nil
+		},
 	}
 
 	// 啟動服務器

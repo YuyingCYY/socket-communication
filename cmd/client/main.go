@@ -55,11 +55,30 @@ typedef struct {
 	Status status;
 } ParameterTableInfo;
 
+typedef struct {
+	char* productName;
+	char* serveNo;
+	uint8_t maunfactWeek;
+	uint8_t maunfactYear;
+	uint16_t echelon;
+	uint16_t serialNumber;
+	uint16_t checkCode;
+	uint8_t warrantyWeek;
+	uint8_t warrantyYear;
+	uint8_t sysEnable;
+	uint8_t sysMatchState;
+	uint8_t sysMatchNum;
+	uint64_t sysMatchInfo[12];
+	uint8_t warrantyState;
+	uint8_t warrantyTimecnt;
+	Status status;
+} ProductInfo;
 */
 import "C"
 import (
 	"strconv"
 	"time"
+	"unsafe"
 
 	"github.com/socket-communication/internal/client"
 	"github.com/socket-communication/internal/models"
@@ -223,6 +242,24 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 	}
 }
 
+//export FreeMainAppInfo
+func FreeMainAppInfo(info *C.MainAppInfo) {
+	if info == nil {
+		return
+	}
+
+	C.free(unsafe.Pointer(info.askReplyId))
+	C.free(unsafe.Pointer(info.timeStampClient))
+	C.free(unsafe.Pointer(info.timeStampServer))
+	C.free(unsafe.Pointer(info.serverVersion))
+	C.free(unsafe.Pointer(info.msgValidateCode))
+	C.free(unsafe.Pointer(info.replyContent.fileName))
+	C.free(unsafe.Pointer(info.replyContent.fileType))
+	C.free(unsafe.Pointer(info.replyContent.appContent))
+	C.free(unsafe.Pointer(info.replyContent.version))
+	C.free(unsafe.Pointer(info.replyContent.blVersion))
+}
+
 //export GetParameterTableInfo
 func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char) C.ParameterTableInfo {
 	// 檢查是否已連線
@@ -318,6 +355,97 @@ func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char
 		replyContent:    replyContent,
 		status:          status,
 	}
+}
+
+//export GetProductInfo
+func GetProductInfo(serialNumber *C.uint16_t) C.ProductInfo {
+	// 檢查是否已連線
+	if !client.GetClient().IsConnected() {
+		return C.ProductInfo{
+			status: C.Status{
+				errCode: C.int(models.ErrClientNotConnected),
+				errDesc: C.CString("Not connected"),
+			},
+		}
+	}
+
+	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
+
+	request := models.Request{
+		Command:         models.Download,
+		TimeStampClient: timeUnix,
+		AskId:           "SecurityZone",
+		SerialNumber:    uint16(*serialNumber),
+	}
+
+	decoder, err := client.GetClient().SendRequest(request)
+	if err != nil {
+		return C.ProductInfo{
+			status: C.Status{
+				errCode: C.int(models.ErrClientRequestSendFailed),
+				errDesc: C.CString(err.Error()),
+			},
+		}
+	}
+
+	var response models.Response
+	if err := decoder.Decode(&response); err != nil {
+		return C.ProductInfo{
+			status: C.Status{
+				errCode: C.int(models.ErrClientResponseDecodeFailed),
+				errDesc: C.CString(err.Error()),
+			},
+		}
+	}
+
+	// 代碼不為`0`皆為錯誤碼
+	if response.Status.ErrCode != 0 {
+		return C.ProductInfo{
+			status: C.Status{
+				errCode: C.int(response.Status.ErrCode),
+				errDesc: C.CString(response.Status.ErrDesc),
+			},
+		}
+	}
+
+	if response.Status.ErrDesc != "" {
+		return C.ProductInfo{
+			status: C.Status{
+				errCode: C.int(response.Status.ErrCode),
+				errDesc: C.CString(response.Status.ErrDesc),
+			},
+		}
+	}
+
+	// 成功僅回傳 code
+	status := C.Status{
+		errCode: C.int(response.Status.ErrCode),
+	}
+
+	info := response.ProductInfo
+	cProductInfo := C.ProductInfo{
+		productName:     C.CString(info.ProductName),
+		serveNo:         C.CString(info.ServeNo),
+		maunfactWeek:    C.uint8_t(int(info.ManufactWeek)),
+		maunfactYear:    C.uint8_t(info.ManufactYear),
+		echelon:         C.uint16_t(info.Echelon),
+		serialNumber:    C.uint16_t(info.SerialNumber),
+		checkCode:       C.uint16_t(info.CheckCode),
+		warrantyWeek:    C.uint8_t(info.WarrantyWeek),
+		warrantyYear:    C.uint8_t(info.WarrantyYear),
+		sysEnable:       C.uint8_t(info.SysEnable),
+		sysMatchState:   C.uint8_t(info.SysMatchState),
+		sysMatchNum:     C.uint8_t(info.SysMatchNum),
+		warrantyState:   C.uint8_t(info.WarrantyState),
+		warrantyTimecnt: C.uint8_t(info.WarrantyTimeCnt),
+		status:          status,
+	}
+	for i := range info.SysMatchInfo {
+		if i < len(cProductInfo.sysMatchInfo) {
+			cProductInfo.sysMatchInfo[i] = C.uint64_t(info.SysMatchInfo[i])
+		}
+	}
+	return cProductInfo
 }
 
 //export FaultLog

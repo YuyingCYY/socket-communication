@@ -38,12 +38,17 @@ func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *mod
 
 // 處理主程式請求
 func ProcessMainAppRequest(req models.Request, basePath string) models.Response {
-	return processRequestBase(req, basePath, ".bin", mainAppHandler)
+	return processRequestBase(req, basePath, ".bin", mainAppHandler, false)
 }
 
 // 處理參數表請求
 func ProcessParameterTable(req models.Request, basePath string) models.Response {
-	return processRequestBase(req, basePath, ".data", parameterTableHandler)
+	return processRequestBase(req, basePath, ".data", parameterTableHandler, false)
+}
+
+// 處理保固資訊請求
+func ProcessSecurityZone(req models.Request, basePath string) models.Response {
+	return processRequestBase(req, basePath, "", securityZoneHandler, true)
 }
 
 // 處理故障表請求
@@ -57,11 +62,16 @@ func processRequestBase(
 	basePath string,
 	fileExt string,
 	handler models.FileResponseHandler,
+	onlyJson bool,
 ) models.Response {
 	// 唯一請求 ID
-	reqUUID := uuid.New().String()
-	// 設定 10 秒逾時 context
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	reqID := strconv.Itoa(int(req.SerialNumber))
+	if reqID == "0" {
+		reqID = uuid.New().String()
+	}
+
+	// 設定 30 秒逾時 context
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// 建立來源路徑與請求內容
@@ -91,7 +101,7 @@ func processRequestBase(
 	}
 
 	// 寫入請求檔案
-	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
+	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqID))
 	if err := writeRequestFile(reqFilePath, processReqData); err != nil {
 		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
 		return models.Response{
@@ -103,12 +113,12 @@ func processRequestBase(
 	}
 
 	// 準備回應檔案路徑
-	respJsonFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.json", reqUUID))
-	respFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s%s", reqUUID, fileExt))
+	respJsonFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.json", reqID))
+	respFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s%s", reqID, fileExt))
 
 	// 建立回應通道並啟動監控協程
 	resultCh := make(chan models.Response, 1)
-	go monitorResponseFilesGeneric(ctx, respJsonFilePath, respFilePath, req, resultCh, handler)
+	go monitorResponseFilesGeneric(ctx, respJsonFilePath, respFilePath, req, resultCh, handler, onlyJson)
 
 	// 等待回應或逾時
 	select {
@@ -132,6 +142,7 @@ func monitorResponseFilesGeneric(
 	req models.Request,
 	resultCh chan<- models.Response,
 	handler models.FileResponseHandler,
+	onlyJson bool,
 ) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -161,21 +172,29 @@ func monitorResponseFilesGeneric(
 					}
 				}
 			}
-			// 檢查資料檔案是否存在且可讀取
-			if data == nil {
-				dataFileInfo, dataErr = os.Stat(dataPath)
-				if dataErr == nil && !dataFileInfo.IsDir() {
-					data, dataErr = os.ReadFile(dataPath)
-					if dataErr != nil {
-						log.Printf("[WARN] Error reading DATA file: %v, will retry", dataErr)
-						data = nil
+			// 只需要 JSON 檔案
+			if onlyJson && jsonData != nil {
+				resultCh <- handler(jsonData, nil, jsonFileInfo, nil, req)
+				return
+			}
+
+			if !onlyJson {
+				// 檢查資料檔案是否存在且可讀取
+				if data == nil {
+					dataFileInfo, dataErr = os.Stat(dataPath)
+					if dataErr == nil && !dataFileInfo.IsDir() {
+						data, dataErr = os.ReadFile(dataPath)
+						if dataErr != nil {
+							log.Printf("[WARN] Error reading DATA file: %v, will retry", dataErr)
+							data = nil
+						}
 					}
 				}
-			}
-			//  兩檔案皆取得後，執行 handler 並回傳結果
-			if jsonData != nil && data != nil {
-				resultCh <- handler(jsonData, data, jsonFileInfo, dataFileInfo, req)
-				return
+				//  兩檔案皆取得後，執行 handler 並回傳結果
+				if jsonData != nil && data != nil {
+					resultCh <- handler(jsonData, data, jsonFileInfo, dataFileInfo, req)
+					return
+				}
 			}
 		}
 	}
@@ -284,6 +303,45 @@ func parameterTableHandler(
 	return models.Response{
 		ParameterTableInfo: parameterTableResponse,
 		Status:             status,
+	}
+}
+
+func securityZoneHandler(
+	jsonData, binData []byte,
+	jsonFileInfo, binFileInfo os.FileInfo,
+	req models.Request,
+) models.Response {
+	var status models.Status
+	// 解析 JSON 取得狀態
+	if err := json.Unmarshal(jsonData, &status); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
+			},
+		}
+	}
+	// 若狀態碼非 0，直接回傳錯誤
+	if status.ErrCode != 0 {
+		log.Printf("[ERROR %d] Server returned error: %s", status.ErrCode, status.ErrDesc)
+		return models.Response{Status: status}
+	}
+	var productInfo models.ProductInfo
+	// 解析 JSON 取得回應內容
+	if err := json.Unmarshal(jsonData, &productInfo); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
+			},
+		}
+	}
+
+	return models.Response{
+		ProductInfo: productInfo,
+		Status:      status,
 	}
 }
 

@@ -40,11 +40,13 @@ type Request struct {
 	StationId         string  `json:"stationId"`
 	OperatorId        string  `json:"operatorId"`
 	MsgValidateCode   string  `json:"msgValidateCode"`
+	SerialNumber      uint16  `json:"serialNumber"`
 }
 
 type Response struct {
 	MainAppInfo        MainAppResponse        `json:"MainAppInfo"`
 	ParameterTableInfo ParameterTableResponse `json:"parameterTableInfo"`
+	ProductInfo        ProductInfo            `json:"productInfo"`
 	Status             Status                 `json:"status"`
 }
 
