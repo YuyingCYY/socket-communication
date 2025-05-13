@@ -22,6 +22,18 @@ import (
 
 // 處理單個客戶端連接的生命週期
 func connectionHandler(ctx context.Context, conn net.Conn, basePath string, doneChan chan struct{}) {
+	// 類型斷言為 TLS 連接
+	tlsConn, ok := conn.(*tls.Conn)
+	if ok {
+		// 握手驗證
+		if err := tlsConn.Handshake(); err != nil {
+			log.Printf("TLS 握手失敗: %v", err)
+			conn.Close()
+			doneChan <- struct{}{}
+			return
+		}
+	}
+
 	defer func() {
 		log.Printf("Connection from %s closed", conn.RemoteAddr())
 		conn.Close()
@@ -123,6 +135,7 @@ func main() {
 	if err := logger.InitLogger(cfg.LogFile); err != nil {
 		panic(err)
 	}
+	logger.StartLogFileRotator()
 
 	// 加載 TLS 證書
 	cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
@@ -142,6 +155,7 @@ func main() {
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    caCertPool,
+		MinVersion:   tls.VersionTLS12,
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			// 解析客戶端憑證
 			clientCert, err := x509.ParseCertificate(rawCerts[0])
