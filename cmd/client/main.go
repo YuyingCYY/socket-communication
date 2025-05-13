@@ -258,6 +258,7 @@ func FreeMainAppInfo(info *C.MainAppInfo) {
 	C.free(unsafe.Pointer(info.replyContent.appContent))
 	C.free(unsafe.Pointer(info.replyContent.version))
 	C.free(unsafe.Pointer(info.replyContent.blVersion))
+	C.free(unsafe.Pointer(info.status.errDesc))
 }
 
 //export GetParameterTableInfo
@@ -357,6 +358,25 @@ func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char
 	}
 }
 
+//export FreeParameterTableInfo
+func FreeParameterTableInfo(info *C.ParameterTableInfo) {
+	if info == nil {
+		return
+	}
+
+	C.free(unsafe.Pointer(info.askReplyId))
+	C.free(unsafe.Pointer(info.timeStampClient))
+	C.free(unsafe.Pointer(info.timeStampServer))
+	C.free(unsafe.Pointer(info.serverVersion))
+	C.free(unsafe.Pointer(info.msgValidateCode))
+	C.free(unsafe.Pointer(info.replyContent.fileName))
+	C.free(unsafe.Pointer(info.replyContent.fileType))
+	C.free(unsafe.Pointer(info.replyContent.parameterContent))
+	C.free(unsafe.Pointer(info.replyContent.version))
+	C.free(unsafe.Pointer(info.replyContent.blVersion))
+	C.free(unsafe.Pointer(info.status.errDesc))
+}
+
 //export GetProductInfo
 func GetProductInfo(serialNumber *C.uint16_t) C.ProductInfo {
 	// 檢查是否已連線
@@ -448,9 +468,27 @@ func GetProductInfo(serialNumber *C.uint16_t) C.ProductInfo {
 	return cProductInfo
 }
 
+//export FreeProductInfo
+func FreeProductInfo(info *C.ProductInfo) {
+	if info == nil {
+		return
+	}
+	C.free(unsafe.Pointer(info.productName))
+	C.free(unsafe.Pointer(info.serveNo))
+	C.free(unsafe.Pointer(info.status.errDesc))
+}
+
 //export FaultLog
 func FaultLog(errCode C.int) {
 
+}
+
+//export FreeStatus
+func FreeStatus(status *C.Status) {
+	if status == nil {
+		return
+	}
+	C.free(unsafe.Pointer(status.errDesc))
 }
 
 func main() {}
