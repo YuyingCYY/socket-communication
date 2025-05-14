@@ -14,12 +14,13 @@ import (
 	"github.com/socket-communication/internal/models"
 )
 
+// 檢查請求中站點資訊是否合法。資訊不完整回應 true, nil;完整回傳 false 及站點資訊
 func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *models.Station) {
-	if req.Station.StationName == "" || req.Station.StationType == "" || req.Station.StationId == "" || req.Station.OperatorId == "" {
+	if req.StationName == "" || req.StationType == "" || req.StationId == "" || req.OperatorId == "" {
 
 		response := models.Status{
-			Code:     models.ErrClientInvalidStation,
-			ErrorMsg: "Invalid station information",
+			ErrCode: models.ErrClientInvalidStation,
+			ErrDesc: "Invalid station information",
 		}
 		if err := encoder.Encode(response); err != nil {
 			log.Printf("[ERROR %d]Error encoding response: %v", models.ErrClientInvalidStation, err)
@@ -27,435 +28,335 @@ func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *mod
 		return true, nil
 	}
 
-	return false, &req.Station
-}
-
-func ProcessFileRequest(req models.Request, basePath string) models.Response {
-	// UUID 作為檔案名稱
-	reqUUID := uuid.New().String()
-
-	// 將請求內容轉換成json
-	jsonData, err := json.Marshal(req)
-	if err != nil {
-		log.Printf("[ERROR %d] Error marshaling request: %v", models.ErrServerJSONMarshal, err)
-		status := models.Status{
-			Code:     models.ErrServerJSONMarshal,
-			ErrorMsg: fmt.Sprintf("Error marshaling request: %v", err),
-		}
-		return models.Response{
-			Status: status,
-		}
-	}
-
-	// 建立請求資料夾路徑
-	reqDirPath := filepath.Join(basePath, "requests")
-	if _, err := os.Stat(reqDirPath); os.IsNotExist(err) {
-		err = os.Mkdir(reqDirPath, 0755)
-		if err != nil {
-			log.Printf("[ERROR %d] Error creating requests directory: %v", models.ErrServerCreateDir, err)
-			status := models.Status{
-				Code:     models.ErrServerCreateDir,
-				ErrorMsg: fmt.Sprintf("Error creating requests directory: %v", err),
-			}
-			return models.Response{
-				Status: status,
-			}
-		}
-	}
-
-	// 將 .json 檔案存放到指定請求資料夾
-	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
-	err = os.WriteFile(reqFilePath, jsonData, 0644)
-	if err != nil {
-		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
-		status := models.Status{
-			Code:     models.ErrServerWriteFile,
-			ErrorMsg: fmt.Sprintf("Error writing request file: %v", err),
-		}
-		return models.Response{
-			Status: status,
-		}
-	}
-
-	// 監聽並等待指定資料夾有回傳檔案
-	respDirPath := filepath.Join(basePath, "responses")
-	respFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.bin", reqUUID))
-	for i := range 10 { // 最多等待 10 秒
-		if fileInfo, err := os.Stat(respFilePath); !os.IsNotExist(err) {
-			// 讀取回傳檔案內容
-			respData, err := os.ReadFile(respFilePath)
-			if err != nil {
-				log.Printf("[ERROR %d] Error reading response file: %v", models.ErrServerReadFile, err)
-				status := models.Status{
-					Code:     models.ErrServerReadFile,
-					ErrorMsg: fmt.Sprintf("Error reading response file: %v", err),
-				}
-				return models.Response{
-					Status: status,
-				}
-			}
-
-			// 將回傳檔案內容解析為 Response struct
-			// var resp models.FileResponse
-			// err = json.Unmarshal(respData, &resp)
-			// if err != nil {
-			// 	errorMsg = "Error unmarshaling response: " + err.Error()
-			// 	log.Print(errorMsg)
-			// 	return models.Response{
-			// 		Error: errorMsg,
-			// 	}
-			// }
-
-			fileResponse := models.FileResponse{
-				FileName:    fileInfo.Name(),
-				FilePath:    respFilePath,
-				FileSize:    fileInfo.Size(),
-				FileContent: respData,
-			}
-
-			return models.Response{
-				FileInfo: fileResponse,
-			}
-		}
-
-		i++
-		time.Sleep(1 * time.Second)
-	}
-
-	log.Printf("[ERROR %d] Timeout waiting for response file", models.ErrServerTimeoutResponseFile)
-	status := models.Status{
-		Code:     models.ErrServerTimeoutResponseFile,
-		ErrorMsg: "Timeout waiting for response file",
-	}
-	return models.Response{
-		Status: status,
+	return false, &models.Station{
+		StationType: req.StationType,
+		StationName: req.StationName,
+		StationId:   req.StationId,
+		OperatorId:  req.OperatorId,
 	}
 }
 
-// func ProcessMainAppRequest(req models.Request, basePath string) models.Response {
-// 	// UUID 作為檔案名稱
-// 	reqUUID := uuid.New().String()
+// 為請求建立檔案、監控回應並處理，適用不同的檔案類型
+func ProcessRequest(
+	req models.Request,
+	basePath string,
+	fileExt string,
+	handler models.FileResponseHandler,
+	onlyJson bool,
+) models.Response {
+	// 唯一請求 ID
+	reqID := strconv.Itoa(int(req.SerialNumber))
+	if reqID == "0" {
+		reqID = uuid.New().String()
+	}
 
-// 	// 將請求內容轉換成json
-// 	jsonData, err := json.Marshal(req)
-// 	if err != nil {
-// 		log.Printf("[ERROR %d] Error marshaling request: %v", models.ErrServerJSONMarshal, err)
-// 		return models.Response{
-// 			Error:     fmt.Sprintf("Error marshaling request: %v", err),
-// 			ErrorCode: models.ErrServerJSONMarshal,
-// 		}
-// 	}
-
-// 	// 建立請求資料夾路徑
-// 	reqDirPath := filepath.Join(basePath, "requests")
-// 	if _, err := os.Stat(reqDirPath); os.IsNotExist(err) {
-// 		err = os.Mkdir(reqDirPath, 0755)
-// 		if err != nil {
-// 			log.Printf("[ERROR %d] Error creating requests directory: %v", models.ErrServerCreateDir, err)
-// 			return models.Response{
-// 				Error:     fmt.Sprintf("Error creating requests directory: %v", err),
-// 				ErrorCode: models.ErrServerCreateDir,
-// 			}
-// 		}
-// 	}
-
-// 	// 將 .json 檔案存放到指定請求資料夾
-// 	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
-// 	err = os.WriteFile(reqFilePath, jsonData, 0644)
-// 	if err != nil {
-// 		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
-// 		return models.Response{
-// 			Error:     fmt.Sprintf("Error writing request file: %v", err),
-// 			ErrorCode: models.ErrServerWriteFile,
-// 		}
-// 	}
-
-// 	// 監聽並等待指定資料夾有回傳檔案
-// 	respDirPath := filepath.Join(basePath, "responses")
-// 	respBinFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.bin", reqUUID))
-// 	respJsonFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.json", reqUUID))
-// 	var replyContent models.MainAppReplyContent
-// 	for i := range 10 { // 最多等待 10 秒
-// 		if _, err := os.Stat(respJsonFilePath); !os.IsNotExist(err) {
-// 			fileContent, err := os.ReadFile(respJsonFilePath)
-// 			if err != nil {
-// 				log.Printf("[ERROR %d] Error reading response JSON file: %v", models.ErrServerReadFile, err)
-// 				return models.Response{
-// 					Error:     fmt.Sprintf("Error reading response JSON file: %v", err),
-// 					ErrorCode: models.ErrServerReadFile,
-// 				}
-// 			}
-
-// 			if err = json.Unmarshal(fileContent, &replyContent); err != nil {
-// 				log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
-// 				return models.Response{
-// 					Error:     fmt.Sprintf("Error unmarshaling JSON data: %v", err),
-// 					ErrorCode: models.ErrServerJSONUnmarshal,
-// 				}
-// 			}
-// 		}
-
-// 		if binFileInfo, err := os.Stat(respBinFilePath); !os.IsNotExist(err) {
-// 			// 讀取回傳檔案內容
-// 			respData, err := os.ReadFile(respBinFilePath)
-// 			if err != nil {
-// 				log.Printf("[ERROR %d] Error reading response file: %v", models.ErrServerReadFile, err)
-// 				return models.Response{
-// 					Error:     fmt.Sprintf("Error reading response file: %v", err),
-// 					ErrorCode: models.ErrServerReadFile,
-// 				}
-// 			}
-
-// 			replyContent.FileName = binFileInfo.Name()
-// 			replyContent.FileSize = binFileInfo.Size()
-// 			replyContent.FileType = ".bin"
-// 			replyContent.FileContent = respData
-
-// 			mainAppResponse := models.MainAppResponse{
-// 				AskReplyId:      "MainApp",
-// 				TimeStampClient: req.TimeStampClient,
-// 				TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
-// 				ServerVersion:   "1.0.0",
-// 				ReplyStatus:     "success",
-// 				MsgValidateCode: "Msg",
-// 				ReplyContent:    replyContent,
-// 			}
-
-// 			return models.Response{
-// 				MainAppInfo: mainAppResponse,
-// 			}
-// 		}
-
-// 		i++
-// 		time.Sleep(1 * time.Second)
-// 	}
-
-// 	log.Printf("[ERROR %d] Timeout waiting for response file", models.ErrServerTimeoutResponseFile)
-// 	return models.Response{
-// 		Error:     "Timeout waiting for response file",
-// 		ErrorCode: models.ErrServerTimeoutResponseFile,
-// 	}
-// }
-
-func ProcessMainAppRequest(req models.Request, basePath string) models.Response {
-	// UUID 作為檔案名稱
-	reqUUID := uuid.New().String()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 設定 30 秒逾時 context
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// 彙整並建立要存放到請求資料夾的Data
-	askContent := req.AskContent
-	var sourcePath string
-	if askContent.CustomizeId != "" {
-		sourcePath = fmt.Sprintf("\\%s\\%s\\customize\\%s", askContent.ProductSeries, askContent.ApplicableProject, askContent.CustomizeId)
-	} else {
-		sourcePath = fmt.Sprintf("\\%s\\%s", askContent.ProductSeries, askContent.ApplicableProject)
-	}
-	processReq := models.ProcessRequest{
-		TimeStamp:       req.TimeStampClient,
-		AskId:           req.AskId,
-		AskContent:      req.AskContent,
-		Station:         req.Station,
-		MsgValidateCode: req.MsgValidateCode,
-		SourcePath:      sourcePath,
-	}
-
-	// 將請求內容轉換成json
+	// 建立來源路徑與請求內容
+	processReq := buildProcessRequest(req)
 	processReqData, err := json.Marshal(processReq)
 	if err != nil {
 		log.Printf("[ERROR %d] Error marshaling request: %v", models.ErrServerJSONMarshal, err)
-		status := models.Status{
-			Code:     models.ErrServerJSONMarshal,
-			ErrorMsg: fmt.Sprintf("Error marshaling request: %v", err),
-		}
 		return models.Response{
-			Status: status,
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONMarshal,
+				ErrDesc: fmt.Sprintf("Error marshaling request: %v", err),
+			},
 		}
 	}
 
-	// 確保請求和回應資料夾存在
+	// 準備請求與回應目錄
 	reqDirPath := filepath.Join(basePath, "requests")
 	respDirPath := filepath.Join(basePath, "responses")
-	for _, dirPath := range []string{reqDirPath, respDirPath} {
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
-			log.Printf("[ERROR %d] Error creating directory %s: %v", models.ErrServerCreateDir, dirPath, err)
-			status := models.Status{
-				Code:     models.ErrServerCreateDir,
-				ErrorMsg: fmt.Sprintf("Error creating directory %s: %v", dirPath, err),
-			}
-			return models.Response{
-				Status: status,
-			}
-		}
-	}
-
-	// 將 .json 檔案存放到指定請求資料夾
-	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
-	err = os.WriteFile(reqFilePath, processReqData, 0644)
-	if err != nil {
-		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
-		status := models.Status{
-			Code:     models.ErrServerWriteFile,
-			ErrorMsg: fmt.Sprintf("Error writing request file: %v", err),
-		}
+	if err := ensureDirs(reqDirPath, respDirPath); err != nil {
+		log.Printf("[ERROR %d] Error creating directory: %v", models.ErrServerCreateDir, err)
 		return models.Response{
-			Status: status,
+			Status: models.Status{
+				ErrCode: models.ErrServerCreateDir,
+				ErrDesc: fmt.Sprintf("Error creating directory: %v", err),
+			},
 		}
 	}
-	defer cleanupFiles(reqFilePath)
 
-	// 監聽並等待指定資料夾有回傳檔案
-	respJsonFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.json", reqUUID))
-	respBinFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.bin", reqUUID))
+	// 寫入請求檔案
+	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqID))
+	if err := writeRequestFile(reqFilePath, processReqData); err != nil {
+		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerWriteFile,
+				ErrDesc: fmt.Sprintf("Error writing request file: %v", err),
+			},
+		}
+	}
 
-	// 使用channel來接收回應結果
+	// 準備回應檔案路徑
+	respJsonFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.json", reqID))
+	respFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s%s", reqID, fileExt))
+
+	// 建立回應通道並啟動監控協程
 	resultCh := make(chan models.Response, 1)
+	go monitorResponseFilesGeneric(ctx, respJsonFilePath, respFilePath, req, resultCh, handler, onlyJson)
 
-	// 啟動檔案監控
-	go monitorResponseFiles(ctx, respJsonFilePath, respBinFilePath, req, resultCh)
-
-	// 等待回應或超時
+	// 等待回應或逾時
 	select {
 	case result := <-resultCh:
-		// 清理回應檔案
-		// cleanupFiles(respJsonFilePath, respBinFilePath)
 		return result
 	case <-ctx.Done():
 		log.Printf("[ERROR %d] Timeout waiting for response files", models.ErrServerTimeoutResponseFile)
-		status := models.Status{
-			Code:     models.ErrServerTimeoutResponseFile,
-			ErrorMsg: "Timeout waiting for response files",
-		}
 		return models.Response{
-			Status: status,
+			Status: models.Status{
+				ErrCode: models.ErrServerTimeoutResponseFile,
+				ErrDesc: "Timeout waiting for response files",
+			},
 		}
 	}
 }
 
-// 監控回應檔案 - 確保同時獲取JSON和BIN檔案
-func monitorResponseFiles(ctx context.Context, jsonPath, binPath string, req models.Request, resultCh chan<- models.Response) {
+// 監控回應檔案，確保同時獲取 JSON 及資料檔案後，呼叫 handler 處理並回傳結果。
+func monitorResponseFilesGeneric(
+	ctx context.Context,
+	jsonPath, dataPath string,
+	req models.Request,
+	resultCh chan<- models.Response,
+	handler models.FileResponseHandler,
+	onlyJson bool,
+) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	var (
 		jsonData     []byte
-		binData      []byte
+		data         []byte
 		jsonFileInfo os.FileInfo
-		binFileInfo  os.FileInfo
+		dataFileInfo os.FileInfo
 		jsonErr      error
-		binErr       error
+		dataErr      error
 	)
 
 	for {
 		select {
 		case <-ctx.Done():
-			// 上下文已取消（超時）
 			return
 		case <-ticker.C:
-			// 檢查JSON檔案存在
+			// 檢查 JSON 檔案是否存在且可讀取
 			if jsonData == nil {
 				jsonFileInfo, jsonErr = os.Stat(jsonPath)
 				if jsonErr == nil && !jsonFileInfo.IsDir() {
 					jsonData, jsonErr = os.ReadFile(jsonPath)
 					if jsonErr != nil {
 						log.Printf("[WARN] Error reading JSON file: %v, will retry", jsonErr)
-						jsonData = nil // 重置以便重試
-					} else {
-						log.Printf("JSON file found: %s", jsonPath)
+						jsonData = nil
 					}
 				}
 			}
-
-			// 檢查BIN檔案存在
-			if binData == nil {
-				binFileInfo, binErr = os.Stat(binPath)
-				if binErr == nil && !binFileInfo.IsDir() {
-					binData, binErr = os.ReadFile(binPath)
-					if binErr != nil {
-						log.Printf("[WARN] Error reading BIN file: %v, will retry", binErr)
-						binData = nil // 重置以便重試
-					} else {
-						log.Printf("BIN file found: %s", binPath)
-					}
-				}
-			}
-
-			// 只有當兩個檔案都成功讀取才處理回應
-			if jsonData != nil && binData != nil {
-				// 先檢查 JSON 是否包含錯誤代碼
-				var status models.Status
-
-				// 解析JSON內容
-				if err := json.Unmarshal(jsonData, &status); err != nil {
-					log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
-					status := models.Status{
-						Code:     models.ErrServerJSONUnmarshal,
-						ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
-					}
-
-					resultCh <- models.Response{
-						Status: status,
-					}
-					return
-				}
-
-				// 檢查代碼是否為非零(錯誤)
-				if status.Code != 0 {
-					log.Printf("[ERROR %d] Server returned error: %s", status.Code, status.ErrorMsg)
-					resultCh <- models.Response{
-						Status: status,
-					}
-					return
-				}
-
-				// 若為 0 表示成功
-				var replyContent models.MainAppReplyContent
-				if err := json.Unmarshal(jsonData, &replyContent); err != nil {
-					log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
-					status := models.Status{
-						Code:     models.ErrServerJSONUnmarshal,
-						ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
-					}
-
-					resultCh <- models.Response{
-						Status: status,
-					}
-					return
-				}
-
-				// 設定BIN檔案信息
-				replyContent.FileName = binFileInfo.Name()
-				replyContent.FileSize = binFileInfo.Size()
-				replyContent.FileType = ".bin"
-				replyContent.AppContent = binData
-
-				// 構建完整回應
-				mainAppResponse := models.MainAppResponse{
-					AskReplyId:      "MainApp",
-					TimeStampClient: req.TimeStampClient,
-					TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
-					ServerVersion:   "1.0.0",
-					MsgValidateCode: "Msg",
-					ReplyContent:    replyContent,
-				}
-
-				resultCh <- models.Response{
-					MainAppInfo: mainAppResponse,
-					Status:      status,
-				}
+			// 只需要 JSON 檔案
+			if onlyJson && jsonData != nil {
+				resultCh <- handler(jsonData, nil, jsonFileInfo, nil, req)
 				return
-			} else {
-				// 記錄當前狀態 (可選，可能會產生大量日誌)
-				// if ctx.Err() == nil { // 只有在未超時的情況下才記錄
-				// 	log.Printf("Waiting for files - JSON: %v, BIN: %v",
-				// 		jsonData != nil, binData != nil)
-				// }
+			}
+
+			if !onlyJson {
+				// 檢查資料檔案是否存在且可讀取
+				if data == nil {
+					dataFileInfo, dataErr = os.Stat(dataPath)
+					if dataErr == nil && !dataFileInfo.IsDir() {
+						data, dataErr = os.ReadFile(dataPath)
+						if dataErr != nil {
+							log.Printf("[WARN] Error reading DATA file: %v, will retry", dataErr)
+							data = nil
+						}
+					}
+				}
+				//  兩檔案皆取得後，執行 handler 並回傳結果
+				if jsonData != nil && data != nil {
+					resultCh <- handler(jsonData, data, jsonFileInfo, dataFileInfo, req)
+					return
+				}
 			}
 		}
 	}
 }
 
-// 清理臨時檔案
+// 處理主應用程式回應檔案，將資料組裝成 MainAppResponse 結構。
+func MainAppHandler(
+	jsonData, binData []byte,
+	jsonFileInfo, binFileInfo os.FileInfo,
+	req models.Request,
+) models.Response {
+	var status models.Status
+	// 解析 JSON 取得狀態
+	if err := json.Unmarshal(jsonData, &status); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
+			},
+		}
+	}
+	// 若狀態碼非 0，直接回傳錯誤
+	if status.ErrCode != 0 {
+		log.Printf("[ERROR %d] Server returned error: %s", status.ErrCode, status.ErrDesc)
+		return models.Response{Status: status}
+	}
+	var replyContent models.MainAppReplyContent
+	// 解析 JSON 取得回應內容
+	if err := json.Unmarshal(jsonData, &replyContent); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
+			},
+		}
+	}
+	// 補充檔案相關資訊
+	replyContent.FileName = binFileInfo.Name()
+	replyContent.FileSize = binFileInfo.Size()
+	replyContent.FileType = ".bin"
+	replyContent.AppContent = binData
+
+	mainAppResponse := models.MainAppResponse{
+		AskReplyId:      "MainApp",
+		TimeStampClient: req.TimeStampClient,
+		TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
+		ServerVersion:   "1.0.0",
+		MsgValidateCode: "Msg",
+		ReplyContent:    replyContent,
+	}
+	return models.Response{
+		MainAppInfo: mainAppResponse,
+		Status:      status,
+	}
+}
+
+// 處理參數表回應檔案，將資料組裝成 ParameterTableResponse 結構。
+func ParameterTableHandler(
+	jsonData, dataData []byte,
+	jsonFileInfo, dataFileInfo os.FileInfo,
+	req models.Request,
+) models.Response {
+	var status models.Status
+	// 解析 JSON 取得狀態
+	if err := json.Unmarshal(jsonData, &status); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
+			},
+		}
+	}
+	// 若狀態碼非 0，直接回傳錯誤
+	if status.ErrCode != 0 {
+		log.Printf("[ERROR %d] Server returned error: %s", status.ErrCode, status.ErrDesc)
+		return models.Response{Status: status}
+	}
+	var replyContent models.ParameterTableReplyContent
+	// 解析 JSON 取得回應內容
+	if err := json.Unmarshal(jsonData, &replyContent); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data into ParameterTableReplyContent: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into ParameterTableReplyContent: %v", err),
+			},
+		}
+	}
+	// 補充檔案相關資訊
+	replyContent.FileName = dataFileInfo.Name()
+	replyContent.FileSize = dataFileInfo.Size()
+	replyContent.FileType = ".data"
+	replyContent.ParameterContent = dataData
+
+	parameterTableResponse := models.ParameterTableResponse{
+		AskReplyId:      "ParameterTable",
+		TimeStampClient: req.TimeStampClient,
+		TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
+		ServerVersion:   "1.0.0",
+		MsgValidateCode: "Msg",
+		ReplyContent:    replyContent,
+	}
+	return models.Response{
+		ParameterTableInfo: parameterTableResponse,
+		Status:             status,
+	}
+}
+
+func SecurityZoneHandler(
+	jsonData, binData []byte,
+	jsonFileInfo, binFileInfo os.FileInfo,
+	req models.Request,
+) models.Response {
+	var status models.Status
+	// 解析 JSON 取得狀態
+	if err := json.Unmarshal(jsonData, &status); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
+			},
+		}
+	}
+	// 若狀態碼非 0，直接回傳錯誤
+	if status.ErrCode != 0 {
+		log.Printf("[ERROR %d] Server returned error: %s", status.ErrCode, status.ErrDesc)
+		return models.Response{Status: status}
+	}
+	var productInfo models.ProductInfo
+	// 解析 JSON 取得回應內容
+	if err := json.Unmarshal(jsonData, &productInfo); err != nil {
+		log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
+		return models.Response{
+			Status: models.Status{
+				ErrCode: models.ErrServerJSONUnmarshal,
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
+			},
+		}
+	}
+
+	return models.Response{
+		ProductInfo: productInfo,
+		Status:      status,
+	}
+}
+
+// 組合 ProcessRequest 結構，將請求資訊與來源路徑封裝。
+func buildProcessRequest(req models.Request) models.ProcessRequest {
+	return models.ProcessRequest{
+		Command:           req.Command,
+		TimeStamp:         req.TimeStampClient,
+		AskId:             req.AskId,
+		ProductSeries:     req.ProductSeries,
+		ApplicableProject: req.ApplicableProject,
+		StationType:       req.StationType,
+		StationName:       req.StationName,
+		StationId:         req.StationId,
+		OperatorId:        req.OperatorId,
+		MsgValidateCode:   req.MsgValidateCode,
+	}
+}
+
+// 確保所有指定目錄皆存在，若不存在則建立。
+func ensureDirs(dirs ...string) error {
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// 將資料寫入指定檔案路徑
+func writeRequestFile(filePath string, data []byte) error {
+	return os.WriteFile(filePath, data, 0644)
+}
+
+// 清理指定的臨時檔案，若檔案不存在則略過。
 func cleanupFiles(files ...string) {
 	for _, file := range files {
 		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {

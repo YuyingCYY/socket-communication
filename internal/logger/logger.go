@@ -61,6 +61,18 @@ func updateLogFile() error {
 	return nil
 }
 
+// 啟動定時切換日誌檔案的 goroutine
+func StartLogFileRotator() {
+	go func() {
+		for {
+			time.Sleep(time.Minute)
+			initMutex.Lock()
+			_ = updateLogFile() // 忽略錯誤處理
+			initMutex.Unlock()
+		}
+	}()
+}
+
 // Log 寫入日誌，自動檢查是否需要切換日誌文件
 func Log(message string) {
 	initMutex.Lock()

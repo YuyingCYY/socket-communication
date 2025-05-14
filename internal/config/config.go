@@ -8,12 +8,13 @@ import (
 )
 
 type Config struct {
-	ServerPort  string `env:"SERVER_PORT,required"`
-	BasePath    string `env:"BASE_PATH,required"`
-	RequestPath string `env:"REQUEST_PATH,required"`
-	CertFile    string `env:"CERT_FILE,required"`
-	KeyFile     string `env:"KEY_FILE,required"`
-	LogFile     string `env:"LOG_FILE,required"`
+	ServerPort    string `env:"SERVER_PORT,required"`
+	BasePath      string `env:"BASE_PATH,required"`
+	RequestPath   string `env:"REQUEST_PATH,required"`
+	CertFile      string `env:"CERT_FILE,required"`
+	KeyFile       string `env:"KEY_FILE,required"`
+	LogFile       string `env:"LOG_FILE,required"`
+	AllowedClient string `env:"ALLOWED_CLIENT"`
 }
 
 func LoadConfig() *Config {

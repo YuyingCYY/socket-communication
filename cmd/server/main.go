@@ -2,18 +2,18 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
-	"time"
 
-	"github.com/go-co-op/gocron"
 	"github.com/socket-communication/internal/config"
 	"github.com/socket-communication/internal/logger"
 	"github.com/socket-communication/internal/models"
@@ -22,6 +22,18 @@ import (
 
 // 處理單個客戶端連接的生命週期
 func connectionHandler(ctx context.Context, conn net.Conn, basePath string, doneChan chan struct{}) {
+	// 類型斷言為 TLS 連接
+	tlsConn, ok := conn.(*tls.Conn)
+	if ok {
+		// 握手驗證
+		if err := tlsConn.Handshake(); err != nil {
+			log.Printf("TLS 握手失敗: %v", err)
+			conn.Close()
+			doneChan <- struct{}{}
+			return
+		}
+	}
+
 	defer func() {
 		log.Printf("Connection from %s closed", conn.RemoteAddr())
 		conn.Close()
@@ -61,7 +73,10 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 				}
 			}
 
-			req.Station = *station
+			req.StationType = station.StationType
+			req.StationName = station.StationName
+			req.StationId = station.StationId
+			req.OperatorId = station.OperatorId
 			if isValidate, _ := server.ValidateStationInfo(&req, encoder); isValidate {
 				log.Printf("[ERROR %d]Invalid station information, closing connection", models.ErrClientInvalidStation)
 				return
@@ -86,11 +101,6 @@ func connectionHandler(ctx context.Context, conn net.Conn, basePath string, done
 
 // 根據請求類型處理請求並返回適當的響應
 func processRequest(req models.Request, basePath string) models.Response {
-	// 文件檔案處理
-	if req.IsGetBinFile {
-		return server.ProcessFileRequest(req, basePath)
-	}
-
 	// 處理連接命令
 	if req.Command == "connect" {
 		return models.Response{}
@@ -99,55 +109,22 @@ func processRequest(req models.Request, basePath string) models.Response {
 	// 根據 askId 處理請求
 	switch req.AskId {
 	case "MainApp":
-		return server.ProcessMainAppRequest(req, basePath)
+		return server.ProcessRequest(req, basePath, ".bin", server.MainAppHandler, false)
+	case "ParameterTable":
+		return server.ProcessRequest(req, basePath, ".data", server.ParameterTableHandler, false)
+	case "SecurityZone":
+		return server.ProcessRequest(req, basePath, "", server.SecurityZoneHandler, true)
+	case "FaultLog":
+		return models.Response{}
 	default:
 		status := models.Status{
-			Code:     models.ErrClientInvalidAskId,
-			ErrorMsg: "Invalid askId",
+			ErrCode: models.ErrClientInvalidAskId,
+			ErrDesc: "Invalid askId",
 		}
 		return models.Response{
 			Status: status,
 		}
 	}
-}
-
-// 定時刪除排程
-func runDeleteFilesScheduledTask(requestPath string) {
-	sch := gocron.NewScheduler(time.Local)
-	// 每天凌晨0點0分執行
-	cronExp := "0 0 * * *"
-	_, err := sch.Cron(cronExp).StartImmediately().Do(
-		func(dirPath string) {
-			err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-
-				if !info.IsDir() {
-					err = os.Remove(path)
-					if err != nil {
-						return err
-					}
-					log.Printf("Deleted file: %s\n", path)
-				}
-
-				return nil
-			})
-
-			if err != nil {
-				log.Printf("Error deleting files: %v", err)
-			} else {
-				log.Printf("All files deleted successfully.")
-			}
-		}, requestPath,
-	)
-
-	if err != nil {
-		panic(err)
-	}
-
-	// start the job in another goroutine
-	sch.StartAsync()
 }
 
 func main() {
@@ -158,9 +135,7 @@ func main() {
 	if err := logger.InitLogger(cfg.LogFile); err != nil {
 		panic(err)
 	}
-
-	// 啟動刪除檔案排程
-	runDeleteFilesScheduledTask(cfg.RequestPath)
+	logger.StartLogFileRotator()
 
 	// 加載 TLS 證書
 	cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
@@ -168,8 +143,38 @@ func main() {
 		log.Fatalf("[ERROR %d]Failed to load TLS certificates: %v", models.ErrServerTimeoutTLSLoad, err)
 	}
 
+	caCert, err := os.ReadFile(cfg.CertFile)
+	if err != nil {
+		log.Fatalf("Failed to read CA cert: %v", err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caCertPool,
+		MinVersion:   tls.VersionTLS12,
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			// 解析客戶端憑證
+			clientCert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return fmt.Errorf("憑證解析失敗: %v", err)
+			}
+
+			// 檢查指紋白名單，使用 %X 強制大寫
+			fingerprintHex := fmt.Sprintf("%X", sha256.Sum256(clientCert.Raw))
+			if fingerprintHex != cfg.AllowedClient {
+				log.Printf("非法憑證指紋: %s (CN=%s, SN=%s)",
+					fingerprintHex,
+					clientCert.Subject.CommonName,
+					clientCert.SerialNumber)
+				return fmt.Errorf("憑證未授權")
+			}
+
+			return nil
+		},
 	}
 
 	// 啟動服務器

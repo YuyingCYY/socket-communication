@@ -9,39 +9,53 @@ type Station struct {
 }
 
 type Status struct {
-	Code     int    `json:"code"`
-	ErrorMsg string `json:"errorMsg,omitempty"`
+	ErrCode int    `json:"errCode"`
+	ErrDesc string `json:"errDesc,omitempty"`
 }
 
-type AskContent struct {
-	ProductSeries     string `json:"productSeries"`
-	ApplicableProject string `json:"applicableProject"`
-	CustomizeId       string `json:"customizeId"`
-}
+type Command string
+
+const (
+	Connect    Command = "connect"
+	Disconnect Command = "disconnect"
+	Download   Command = "download"
+	Upload     Command = "upload"
+)
 
 type Request struct {
-	Command         string     `json:"command"`
-	TimeStampClient string     `json:"timeStampClient"`
-	AskId           string     `json:"askId"`
-	AskContent      AskContent `json:"askContent"`
-	IsGetBinFile    bool       `json:"isGetBinFile"`
-	Station         Station    `json:"station"`
-	MsgValidateCode string     `json:"msgValidateCode"`
+	Command           Command `json:"command"`
+	TimeStampClient   string  `json:"timeStampClient"`
+	AskId             string  `json:"askId"`
+	ProductSeries     string  `json:"productSeries"`
+	ApplicableProject string  `json:"applicableProject"`
+	CustomizeId       string  `json:"customizeId"`
+	StationType       string  `json:"stationType"`
+	StationName       string  `json:"stationName"`
+	StationId         string  `json:"stationId"`
+	OperatorId        string  `json:"operatorId"`
+	MsgValidateCode   string  `json:"msgValidateCode"`
+	SerialNumber      uint16  `json:"serialNumber"`
 }
 
 type Response struct {
-	FileInfo    FileResponse    `json:"fileInfo"`
-	MainAppInfo MainAppResponse `json:"MainAppInfo"`
-	Status      Status          `json:"status"`
+	MainAppInfo        MainAppResponse        `json:"MainAppInfo"`
+	ParameterTableInfo ParameterTableResponse `json:"parameterTableInfo"`
+	ProductInfo        ProductInfo            `json:"productInfo"`
+	Status             Status                 `json:"status"`
 }
 
 type ProcessRequest struct {
-	TimeStamp       string     `json:"timeStamp"`
-	AskId           string     `json:"askId"`
-	AskContent      AskContent `json:"askContent"`
-	Station         Station    `json:"station"`
-	MsgValidateCode string     `json:"msgValidateCode"`
-	SourcePath      string     `json:"sourcePath"`
+	Command           Command `json:"command"`
+	TimeStamp         string  `json:"timeStamp"`
+	AskId             string  `json:"askId"`
+	ProductSeries     string  `json:"productSeries"`
+	ApplicableProject string  `json:"applicableProject"`
+	CustomizeId       string  `json:"customizeId"`
+	StationType       string  `json:"stationType"`
+	StationName       string  `json:"stationName"`
+	StationId         string  `json:"stationId"`
+	OperatorId        string  `json:"operatorId"`
+	MsgValidateCode   string  `json:"msgValidateCode"`
 }
 
 const (
@@ -68,4 +82,5 @@ const (
 	ErrClientReadCACertFailed      = 2008 // 讀取 CA 證書失敗
 	ErrClientParseCACertFailed     = 2009 // 解析 CA 證書失敗
 	ErrClientTLSConnectionFailed   = 2010 // 建立 TLS 連接失敗
+	ErrClientCertLoadFailed        = 2011 // 加載 CA 證書失敗
 )
