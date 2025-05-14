@@ -36,28 +36,8 @@ func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *mod
 	}
 }
 
-// 處理主程式請求
-func ProcessMainAppRequest(req models.Request, basePath string) models.Response {
-	return processRequestBase(req, basePath, ".bin", mainAppHandler, false)
-}
-
-// 處理參數表請求
-func ProcessParameterTable(req models.Request, basePath string) models.Response {
-	return processRequestBase(req, basePath, ".data", parameterTableHandler, false)
-}
-
-// 處理保固資訊請求
-func ProcessSecurityZone(req models.Request, basePath string) models.Response {
-	return processRequestBase(req, basePath, "", securityZoneHandler, true)
-}
-
-// 處理故障表請求
-func ProcessFaultLogRequest(req models.Request, basePath string) models.Response {
-	return models.Response{}
-}
-
 // 為請求建立檔案、監控回應並處理，適用不同的檔案類型
-func processRequestBase(
+func ProcessRequest(
 	req models.Request,
 	basePath string,
 	fileExt string,
@@ -201,7 +181,7 @@ func monitorResponseFilesGeneric(
 }
 
 // 處理主應用程式回應檔案，將資料組裝成 MainAppResponse 結構。
-func mainAppHandler(
+func MainAppHandler(
 	jsonData, binData []byte,
 	jsonFileInfo, binFileInfo os.FileInfo,
 	req models.Request,
@@ -254,7 +234,7 @@ func mainAppHandler(
 }
 
 // 處理參數表回應檔案，將資料組裝成 ParameterTableResponse 結構。
-func parameterTableHandler(
+func ParameterTableHandler(
 	jsonData, dataData []byte,
 	jsonFileInfo, dataFileInfo os.FileInfo,
 	req models.Request,
@@ -306,7 +286,7 @@ func parameterTableHandler(
 	}
 }
 
-func securityZoneHandler(
+func SecurityZoneHandler(
 	jsonData, binData []byte,
 	jsonFileInfo, binFileInfo os.FileInfo,
 	req models.Request,

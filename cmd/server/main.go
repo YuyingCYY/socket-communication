@@ -109,13 +109,13 @@ func processRequest(req models.Request, basePath string) models.Response {
 	// 根據 askId 處理請求
 	switch req.AskId {
 	case "MainApp":
-		return server.ProcessMainAppRequest(req, basePath)
+		return server.ProcessRequest(req, basePath, ".bin", server.MainAppHandler, false)
 	case "ParameterTable":
-		return server.ProcessParameterTable(req, basePath)
+		return server.ProcessRequest(req, basePath, ".data", server.ParameterTableHandler, false)
 	case "SecurityZone":
-		return server.ProcessSecurityZone(req, basePath)
+		return server.ProcessRequest(req, basePath, "", server.SecurityZoneHandler, true)
 	case "FaultLog":
-		return server.ProcessFaultLogRequest(req, basePath)
+		return models.Response{}
 	default:
 		status := models.Status{
 			ErrCode: models.ErrClientInvalidAskId,

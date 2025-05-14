@@ -13,12 +13,6 @@ type Status struct {
 	ErrDesc string `json:"errDesc,omitempty"`
 }
 
-type AskContent struct {
-	ProductSeries     string `json:"productSeries"`
-	ApplicableProject string `json:"applicableProject"`
-	CustomizeId       string `json:"customizeId"`
-}
-
 type Command string
 
 const (
