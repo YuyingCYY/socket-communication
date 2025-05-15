@@ -15,6 +15,7 @@ var (
 	initMutex sync.Mutex
 )
 
+// 初始化日誌系統
 func InitLogger(dir string) error {
 	initMutex.Lock()
 	defer initMutex.Unlock()
@@ -26,7 +27,6 @@ func InitLogger(dir string) error {
 		return err
 	}
 
-	// 初始化日誌文件
 	return updateLogFile()
 }
 

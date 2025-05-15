@@ -17,6 +17,7 @@ type Config struct {
 	AllowedClient string `env:"ALLOWED_CLIENT"`
 }
 
+// 載入環境配置
 func LoadConfig() *Config {
 	err := godotenv.Load()
 
