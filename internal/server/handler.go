@@ -128,15 +128,21 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 
 	log.Printf("Searching for .json file in: %s", path)
 
-	// 搜尋 .json 文件
-	var jsonFile string
+	// 同時搜尋.json和.bin檔案
+	var jsonFile, binFile string
 	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && filepath.Ext(path) == ".json" {
+		if info.IsDir() {
+			return nil
+		}
+
+		ext := filepath.Ext(path)
+		if ext == ".json" {
 			jsonFile = path
-			return filepath.SkipAll
+		} else if ext == ".bin" {
+			binFile = path
 		}
 		return nil
 	})
@@ -147,30 +153,44 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 		}
 	}
 
+	// 檢查必要檔案存在
+	if binFile == "" {
+		return models.Response{Error: "No .bin file found."}
+	}
 	if jsonFile == "" {
 		return models.Response{
 			Error: "No .json file found",
 		}
 	}
 
-	// 檔案內容
-	fileContent, err := os.ReadFile(jsonFile)
+	// 讀取JSON檔案
+	jsonContent, err := os.ReadFile(jsonFile)
 	if err != nil {
-		return models.Response{
-			Error: fmt.Sprintf("Error reading file contetn: %v", err),
-		}
+		return models.Response{Error: fmt.Sprintf("JSON檔案讀取失敗: %v", err)}
 	}
 
-	var replyContent models.ReplyContent
-	err = json.Unmarshal(fileContent, &replyContent)
-
-	if err != nil {
-		return models.Response{
-			Error: fmt.Sprintf("Error Unmarshal parses the JSON data: %v", err),
-		}
+	var replyContent models.MainAppReplyContent
+	if err := json.Unmarshal(jsonContent, &replyContent); err != nil {
+		return models.Response{Error: fmt.Sprintf("JSON解析錯誤: %v", err)}
 	}
 
-	// TODO: 這裡的回覆內容需要根據實際情況進行修改
+	// 讀取BIN檔案並更新內容
+	binData, err := os.ReadFile(binFile)
+	if err != nil {
+		return models.Response{Error: fmt.Sprintf("BIN檔案讀取失敗: %v", err)}
+	}
+
+	// 取得檔案資訊
+	binInfo, err := os.Stat(binFile)
+	if err != nil {
+		return models.Response{Error: fmt.Sprintf("BIN檔案資訊取得失敗: %v", err)}
+	}
+
+	// 更新回覆內容
+	replyContent.FileSize = binInfo.Size()
+	replyContent.AppContent = binData
+
+	// 建構回應
 	mainAppResponse := models.MainAppResponse{
 		AskReplyId:      "MainApp",
 		TimeStampClient: req.TimeStampClient,
@@ -183,5 +203,91 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 
 	return models.Response{
 		MainAppInfo: mainAppResponse,
+	}
+}
+
+func ProcessParameterTableRequest(req models.Request, basePath string) models.Response {
+	// 建構獲取 .json 檔案資訊的路徑
+	path := filepath.Join(basePath, req.AskId, req.AskContent.ProductSeries, req.AskContent.ApplicableProject)
+	if req.AskContent.CustomizeId != "" {
+		path = filepath.Join(path, "customize", req.AskContent.CustomizeId)
+	}
+
+	log.Printf("Searching for .json file in: %s", path)
+
+	// 同時搜尋.json和.bin檔案
+	var jsonFile, dataFile string
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		ext := filepath.Ext(path)
+		if ext == ".json" {
+			jsonFile = path
+		} else if ext == ".data" {
+			dataFile = path
+		}
+		return nil
+	})
+
+	if err != nil {
+		return models.Response{
+			Error: fmt.Sprintf("Error searching for json file: %v", err),
+		}
+	}
+
+	// 檢查必要檔案存在
+	if dataFile == "" {
+		return models.Response{Error: "No .bin file found."}
+	}
+	if jsonFile == "" {
+		return models.Response{
+			Error: "No .json file found",
+		}
+	}
+
+	// 讀取JSON檔案
+	jsonContent, err := os.ReadFile(jsonFile)
+	if err != nil {
+		return models.Response{Error: fmt.Sprintf("JSON檔案讀取失敗: %v", err)}
+	}
+
+	var replyContent models.ParameterTableReplyContent
+	if err := json.Unmarshal(jsonContent, &replyContent); err != nil {
+		return models.Response{Error: fmt.Sprintf("JSON解析錯誤: %v", err)}
+	}
+
+	// 讀取BIN檔案並更新內容
+	dataData, err := os.ReadFile(dataFile)
+	if err != nil {
+		return models.Response{Error: fmt.Sprintf("BIN檔案讀取失敗: %v", err)}
+	}
+
+	// 取得檔案資訊
+	binInfo, err := os.Stat(dataFile)
+	if err != nil {
+		return models.Response{Error: fmt.Sprintf("BIN檔案資訊取得失敗: %v", err)}
+	}
+
+	// 更新回覆內容
+	replyContent.FileSize = binInfo.Size()
+	replyContent.ParameterContent = dataData
+
+	// 建構回應
+	parameterTableResponse := models.ParameterTableResponse{
+		AskReplyId:      "ParameterTable",
+		TimeStampClient: req.TimeStampClient,
+		TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
+		ServerVersion:   "1.0.0",
+		MsgValidateCode: "Msg",
+		ReplyContent:    replyContent,
+	}
+
+	return models.Response{
+		ParameterTableInfo: parameterTableResponse,
 	}
 }

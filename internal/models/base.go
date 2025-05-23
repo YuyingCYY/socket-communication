@@ -24,14 +24,8 @@ type AskContent struct {
 }
 
 type Response struct {
-	FileInfo    FileResponse    `json:"fileInfo"`
-	MainAppInfo MainAppResponse `json:"MainAppInfo"`
-	Error       string          `json:"error,omitempty"`
-}
-
-type ReplyContent struct {
-	FileSize   int64  `json:"fileSize"`
-	AppContent string `json:"appContent"`
-	Version    string `json:"version"`
-	BLVersion  string `json:"blVersion"`
+	FileInfo           FileResponse           `json:"fileInfo"`
+	MainAppInfo        MainAppResponse        `json:"mainAppInfo"`
+	ParameterTableInfo ParameterTableResponse `json:"parameterTableInfo"`
+	Error              string                 `json:"error,omitempty"`
 }

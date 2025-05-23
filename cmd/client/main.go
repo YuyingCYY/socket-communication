@@ -6,31 +6,47 @@ package main
 
 // 定義結構體（與 Go 中的定義一致）
 typedef struct {
-	char* fileName;
-	char* filePath;
-	int64_t fileSize;
-	char* fileContent;
-	size_t fileContentSize;
-	char* errorMsg;
-} BinFileInfo;
-
-typedef struct {
 	int64_t fileSize;
 	char* appContent;
 	char* version;
 	char* blVersion;
-} ReplyContent;
+} MainAppReplyContent;
 
 typedef struct {
 	char* askReplyId;
 	char* timeStampClient;
 	char* timeStampServer;
 	char* serverVersion;
-	char* replyStauts;
 	char* msgValidateCode;
-	ReplyContent replyContent;
+	MainAppReplyContent replyContent;
 	char* errorMsg;
 } MainAppInfo;
+
+typedef struct {
+	int start;
+	int end;
+} ShieldedZone;
+
+typedef struct {
+	char* fileName;
+	int64_t fileSize;
+	char* fileType;
+	char* parameterContent;
+	char* version;
+	char* blVersion;
+	int shieldedZoneCount;
+	ShieldedZone shieldedZone[10];
+} ParameterTableReplyContent;
+
+typedef struct {
+	char* askReplyId;
+	char* timeStampClient;
+	char* timeStampServer;
+	char* serverVersion;
+	char* msgValidateCode;
+	ParameterTableReplyContent replyContent;
+	char* errorMsg;
+} ParameterTableInfo;
 
 */
 import "C"
@@ -115,77 +131,6 @@ func CloseConnection() *C.char {
 	return C.CString("disconnect")
 }
 
-//export GetBinFileInfo
-func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char) C.BinFileInfo {
-	// 檢查是否已連線
-	if !client.GetClient().IsConnected() {
-		return C.BinFileInfo{
-			errorMsg: C.CString("Not connected"),
-		}
-	}
-
-	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
-
-	// AskContent
-	askContent := models.AskContent{
-		ProductSeries:     C.GoString(productSeries),
-		ApplicableProject: C.GoString(applicableProject),
-		CustomizeId:       C.GoString(customizeId),
-	}
-
-	request := models.Request{
-		TimeStampClient: timeUnix,
-		AskId:           C.GoString(askId),
-		AskContent:      askContent,
-		IsGetBinFile:    true,
-		MsgValidateCode: "validateCode",
-	}
-
-	decoder, err := client.GetClient().SendRequest(request)
-	if err != nil {
-		return C.BinFileInfo{
-			errorMsg: C.CString(err.Error()),
-		}
-	}
-
-	var response models.Response
-	if err := decoder.Decode(&response); err != nil {
-		return C.BinFileInfo{
-			errorMsg: C.CString(err.Error()),
-		}
-	}
-
-	if response.Error != "" {
-		return C.BinFileInfo{
-			errorMsg: C.CString(response.Error),
-		}
-	}
-
-	return C.BinFileInfo{
-		fileName:        C.CString(response.FileInfo.FileName),
-		filePath:        C.CString(response.FileInfo.FilePath),
-		fileSize:        C.int64_t(response.FileInfo.FileSize),
-		fileContent:     C.CString(string(response.FileInfo.FileContent)),
-		fileContentSize: C.size_t(len(response.FileInfo.FileContent)),
-	}
-}
-
-//export FreeBinFileInfo
-func FreeBinFileInfo(info C.BinFileInfo) {
-	if info.fileName != nil {
-		C.free(unsafe.Pointer(info.fileName))
-	}
-	if info.filePath != nil {
-		C.free(unsafe.Pointer(info.filePath))
-	}
-	if info.fileContent != nil {
-		C.free(unsafe.Pointer(info.fileContent))
-	}
-	if info.errorMsg != nil {
-		C.free(unsafe.Pointer(info.errorMsg))
-	}
-}
-
 //export GetMainAppInfo
 func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.MainAppInfo {
 	// 檢查是否已連線
@@ -231,9 +176,9 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 		}
 	}
 
-	replyContent := C.ReplyContent{
+	replyContent := C.MainAppReplyContent{
 		fileSize:   C.int64_t(response.MainAppInfo.ReplyContent.FileSize),
-		appContent: C.CString(response.MainAppInfo.ReplyContent.AppContent),
+		appContent: C.CString(string(response.MainAppInfo.ReplyContent.AppContent)),
 		version:    C.CString(response.MainAppInfo.ReplyContent.Version),
 		blVersion:  C.CString(response.MainAppInfo.ReplyContent.BLVersion),
 	}
@@ -243,10 +188,99 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 		timeStampClient: C.CString(response.MainAppInfo.TimeStampClient),
 		timeStampServer: C.CString(response.MainAppInfo.TimeStampServer),
 		serverVersion:   C.CString(response.MainAppInfo.ServerVersion),
-		replyStauts:     C.CString(response.MainAppInfo.ReplyStatus),
 		msgValidateCode: C.CString(response.MainAppInfo.MsgValidateCode),
 		replyContent:    replyContent,
 	}
+}
+
+//export GetParameterTableInfo
+func GetParameterTableInfo(productSeries, applicableProject, customizeId, fileName *C.char) C.ParameterTableInfo {
+	// 檢查是否已連線
+	if !client.GetClient().IsConnected() {
+		return C.ParameterTableInfo{
+			errorMsg: C.CString("Not connected"),
+		}
+	}
+
+	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
+
+	// AskContent
+	askContent := models.AskContent{
+		ProductSeries:     C.GoString(productSeries),
+		ApplicableProject: C.GoString(applicableProject),
+		CustomizeId:       C.GoString(customizeId),
+	}
+
+	request := models.Request{
+		TimeStampClient: timeUnix,
+		AskId:           "ParameterTable",
+		AskContent:      askContent,
+	}
+
+	decoder, err := client.GetClient().SendRequest(request)
+	if err != nil {
+		return C.ParameterTableInfo{
+			errorMsg: C.CString(err.Error()),
+		}
+	}
+
+	var response models.Response
+	if err := decoder.Decode(&response); err != nil {
+		return C.ParameterTableInfo{
+			errorMsg: C.CString(err.Error()),
+		}
+	}
+
+	if response.Error != "" {
+		return C.ParameterTableInfo{
+			errorMsg: C.CString(response.Error),
+		}
+	}
+
+	shieldedZone := response.ParameterTableInfo.ReplyContent.ShieldedZone
+	var cShieldedZones [10]C.ShieldedZone
+
+	for i := range response.ParameterTableInfo.ReplyContent.ShieldedZoneCount {
+		cShieldedZones[i].start = C.int(shieldedZone[i].Start)
+		cShieldedZones[i].end = C.int(shieldedZone[i].End)
+	}
+
+	replyContent := C.ParameterTableReplyContent{
+		fileSize:          C.int64_t(response.ParameterTableInfo.ReplyContent.FileSize),
+		parameterContent:  C.CString(string(response.ParameterTableInfo.ReplyContent.ParameterContent)),
+		version:           C.CString(response.ParameterTableInfo.ReplyContent.Version),
+		blVersion:         C.CString(response.ParameterTableInfo.ReplyContent.BLVersion),
+		shieldedZoneCount: C.int(response.ParameterTableInfo.ReplyContent.ShieldedZoneCount),
+		shieldedZone:      cShieldedZones,
+	}
+
+	return C.ParameterTableInfo{
+		askReplyId:      C.CString(response.ParameterTableInfo.AskReplyId),
+		timeStampClient: C.CString(response.ParameterTableInfo.TimeStampClient),
+		timeStampServer: C.CString(response.ParameterTableInfo.TimeStampServer),
+		serverVersion:   C.CString(response.ParameterTableInfo.ServerVersion),
+		msgValidateCode: C.CString(response.ParameterTableInfo.MsgValidateCode),
+		replyContent:    replyContent,
+	}
+}
+
+//export FreeParameterTableInfo
+func FreeParameterTableInfo(info *C.ParameterTableInfo) {
+	if info == nil {
+		return
+	}
+
+	C.free(unsafe.Pointer(info.askReplyId))
+	C.free(unsafe.Pointer(info.timeStampClient))
+	C.free(unsafe.Pointer(info.timeStampServer))
+	C.free(unsafe.Pointer(info.serverVersion))
+	C.free(unsafe.Pointer(info.msgValidateCode))
+	C.free(unsafe.Pointer(info.replyContent.fileName))
+	C.free(unsafe.Pointer(info.replyContent.fileType))
+	C.free(unsafe.Pointer(info.replyContent.parameterContent))
+	C.free(unsafe.Pointer(info.replyContent.version))
+	C.free(unsafe.Pointer(info.replyContent.blVersion))
+	C.free(unsafe.Pointer(info.errorMsg))
 }
 
 func main() {}
