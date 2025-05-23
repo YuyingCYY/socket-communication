@@ -13,7 +13,7 @@ type ProductInfo struct {
 	SysEnable       uint8    `json:"sysEnable"`
 	SysMatchState   uint8    `json:"sysMatchState"`
 	SysMatchNum     uint8    `json:"sysMatchNum"`
-	SysMatchInfo    []uint64 `json:"sysMatchInfo"`
+	SysMatchInfo    []string `json:"sysMatchInfo"`
 	WarrantyState   uint8    `json:"warrantyState"`
 	WarrantyTimeCnt uint32   `json:"warrantyTimecnt"`
 }

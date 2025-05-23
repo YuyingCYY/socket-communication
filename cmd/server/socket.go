@@ -215,7 +215,7 @@ func (s *socketServer) Start() error {
 	signal.Notify(s.sigChan, syscall.SIGINT, syscall.SIGTERM)
 	log.Printf("Server started on %s", s.cfg.ServerPort)
 
-	// // 啟動接收連線的 goroutine
+	// 啟動接收連線的 goroutine
 	go s.acceptConnections()
 
 	select {

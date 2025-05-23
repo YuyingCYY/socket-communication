@@ -47,7 +47,11 @@ func ProcessRequest(
 	// 唯一請求 ID
 	reqID := strconv.Itoa(int(req.SerialNumber))
 	if reqID == "0" {
-		reqID = uuid.New().String()
+		if req.FileName == "" {
+			reqID = uuid.New().String()
+		} else {
+			reqID = req.FileName
+		}
 	}
 
 	// 設定 30 秒逾時 context
@@ -310,11 +314,11 @@ func SecurityZoneHandler(
 	var productInfo models.ProductInfo
 	// 解析 JSON 取得回應內容
 	if err := json.Unmarshal(jsonData, &productInfo); err != nil {
-		log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
+		log.Printf("[ERROR %d] Error unmarshaling JSON data into ProductInfo: %v", models.ErrServerJSONUnmarshal, err)
 		return models.Response{
 			Status: models.Status{
 				ErrCode: models.ErrServerJSONUnmarshal,
-				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
+				ErrDesc: fmt.Sprintf("Error unmarshaling JSON data into ProductInfo: %v", err),
 			},
 		}
 	}
