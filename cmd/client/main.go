@@ -44,8 +44,8 @@ import (
 	"github.com/socket-communication/internal/models"
 )
 
-//export InitConnection
-func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.char {
+//export InitializeClient
+func InitializeClient(stationType, stationName, stationId, operatorId *C.char) *C.char {
 	err := client.GetClient().InitConnection()
 	if err != nil {
 		return C.CString(err.Error())
