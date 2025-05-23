@@ -8,11 +8,6 @@ type Station struct {
 	OperatorId  string `json:"operatorId"`
 }
 
-type Status struct {
-	Code     int    `json:"code"`
-	ErrorMsg string `json:"errorMsg,omitempty"`
-}
-
 type AskContent struct {
 	ProductSeries     string `json:"productSeries"`
 	ApplicableProject string `json:"applicableProject"`
@@ -32,7 +27,15 @@ type Request struct {
 type Response struct {
 	FileInfo    FileResponse    `json:"fileInfo"`
 	MainAppInfo MainAppResponse `json:"MainAppInfo"`
-	Status      Status          `json:"status"`
+	Error       string          `json:"error,omitempty"`
+	ErrorCode   int             `json:"code"`
+}
+
+type ReplyContent struct {
+	FileSize   int64  `json:"fileSize"`
+	AppContent string `json:"appContent"`
+	Version    string `json:"version"`
+	BLVersion  string `json:"blVersion"`
 }
 
 const (
