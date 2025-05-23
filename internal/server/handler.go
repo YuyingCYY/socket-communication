@@ -9,113 +9,84 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/socket-communication/internal/models"
 )
 
-func ValidateStationInfo(req *models.Request, encoder *json.Encoder) (bool, *models.Station) {
-	log.Printf("Station name: %s, Station Type: %s, Station ID: %s, Operator ID: %s",
-		req.Station.StationName, req.Station.StationType, req.Station.StationId, req.Station.OperatorId)
+func ValidateStationInfo(req *models.Request, encoder *json.Encoder) bool {
+	// log.Printf("Station name: %s, Station Type: %s, Station ID: %s, Operator ID: %s",
+	// 	req.Station.StationName, req.Station.StationType, req.Station.StationId, req.Station.OperatorId)
 
-	if req.Station.StationName == "" || req.Station.StationType == "" || req.Station.StationId == "" || req.Station.OperatorId == "" {
-		response := models.Response{
-			Error: "Invalid station information",
-		}
-		if err := encoder.Encode(response); err != nil {
-			log.Printf("Error encoding response: %v", err)
-		}
-		return true, nil
-	}
-
-	return false, &req.Station
+	// if req.Station.StationName == "" || req.Station.StationType == "" || req.Station.StationId == "" || req.Station.OperatorId == "" {
+	// 	response := models.Response{
+	// 		Error: "Invalid station information",
+	// 	}
+	// 	if err := encoder.Encode(response); err != nil {
+	// 		log.Printf("Error encoding response: %v", err)
+	// 	}
+	// 	return true
+	// }
+	return false
 }
 
 func ProcessFileRequest(req models.Request, basePath string) models.Response {
-	// UUID 作為檔案名稱
-	reqUUID := uuid.New().String()
-	var errorMsg string
-
-	// 將請求內容轉換成json
-	jsonData, err := json.Marshal(req)
-	if err != nil {
-		errorMsg = "Error marshaling request: " + err.Error()
-		log.Print(errorMsg)
-		return models.Response{
-			Error: errorMsg,
-		}
+	// 建構完整路徑
+	path := filepath.Join(basePath, req.AskId, req.ProductSeries, req.ApplicableProject)
+	if req.CustomizeId != "" {
+		path = filepath.Join(path, "customize", req.CustomizeId)
 	}
 
-	// 建立請求資料夾路徑
-	reqDirPath := filepath.Join(basePath, "requests")
-	if _, err := os.Stat(reqDirPath); os.IsNotExist(err) {
-		err = os.Mkdir(reqDirPath, 0755)
+	log.Printf("Searching for .bin file in: %s", path)
+
+	// 搜尋 .bin 文件
+	var binFile string
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			errorMsg = "Error creating requests directory: " + err.Error()
-			log.Print(errorMsg)
-			return models.Response{
-				Error: errorMsg,
-			}
+			return err
 		}
-	}
+		if !info.IsDir() && filepath.Ext(path) == ".bin" {
+			binFile = path
+			return filepath.SkipAll
+		}
+		return nil
+	})
 
-	// 將 .json 檔案存放到指定請求資料夾
-	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
-	err = os.WriteFile(reqFilePath, jsonData, 0644)
 	if err != nil {
-		errorMsg = "Error writing request file: " + err.Error()
-		log.Print(errorMsg)
 		return models.Response{
-			Error: errorMsg,
+			Error: fmt.Sprintf("Error searching for bin file: %v", err),
 		}
 	}
 
-	// 監聽並等待指定資料夾有回傳檔案
-	respDirPath := filepath.Join(basePath, "responses")
-	respFilePath := filepath.Join(respDirPath, fmt.Sprintf("%s.bin", reqUUID))
-	for i := range 10 { // 最多等待 10 秒
-		if fileInfo, err := os.Stat(respFilePath); !os.IsNotExist(err) {
-			// 讀取回傳檔案內容
-			respData, err := os.ReadFile(respFilePath)
-			if err != nil {
-				errorMsg = "Error reading response file: " + err.Error()
-				log.Print(errorMsg)
-				return models.Response{
-					Error: errorMsg,
-				}
-			}
-
-			// 將回傳檔案內容解析為 Response struct
-			// var resp models.FileResponse
-			// err = json.Unmarshal(respData, &resp)
-			// if err != nil {
-			// 	errorMsg = "Error unmarshaling response: " + err.Error()
-			// 	log.Print(errorMsg)
-			// 	return models.Response{
-			// 		Error: errorMsg,
-			// 	}
-			// }
-
-			fileResponse := models.FileResponse{
-				FileName:    fileInfo.Name(),
-				FilePath:    respFilePath,
-				FileSize:    fileInfo.Size(),
-				FileContent: respData,
-			}
-
-			return models.Response{
-				FileInfo: fileResponse,
-			}
+	if binFile == "" {
+		return models.Response{
+			Error: "No .bin file found",
 		}
-
-		i++
-		time.Sleep(1 * time.Second)
 	}
 
-	// 回傳 Response
-	errorMsg = "Timeout waiting for response file"
-	log.Print(errorMsg)
+	// 檔案訊息
+	fileInfo, err := os.Stat(binFile)
+	if err != nil {
+		return models.Response{
+			Error: fmt.Sprintf("Error getting file info: %v", err),
+		}
+	}
+
+	// 檔案內容
+	fileContent, err := os.ReadFile(binFile)
+	if err != nil {
+		return models.Response{
+			Error: fmt.Sprintf("Error reading file content: %v", err),
+		}
+	}
+
+	fileResponse := models.FileResponse{
+		FileName:    fileInfo.Name(),
+		FilePath:    binFile,
+		FileSize:    fileInfo.Size(),
+		FileContent: fileContent,
+	}
+
 	return models.Response{
-		Error: errorMsg,
+		FileInfo: fileResponse,
 	}
 }
 

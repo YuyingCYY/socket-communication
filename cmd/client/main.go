@@ -44,8 +44,8 @@ import (
 	"github.com/socket-communication/internal/models"
 )
 
-//export InitializeClient
-func InitializeClient(stationType, stationName, stationId, operatorId *C.char) *C.char {
+//export InitConnection
+func InitConnection(stationType, stationName, stationId, operatorId *C.char) *C.char {
 	err := client.GetClient().InitConnection()
 	if err != nil {
 		return C.CString(err.Error())
@@ -124,9 +124,7 @@ func GetBinFileInfo(askId, productSeries, applicableProject, customizeId *C.char
 		}
 	}
 
-	timeUnix := strconv.FormatInt(time.Now().Unix(), 10)
 	request := models.Request{
-		TimeStampClient:   timeUnix,
 		AskId:             C.GoString(askId),
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
