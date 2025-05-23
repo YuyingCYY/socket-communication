@@ -121,9 +121,9 @@ func ProcessFileRequest(req models.Request, basePath string) models.Response {
 
 func ProcessMainAppRequest(req models.Request, basePath string) models.Response {
 	// 建構獲取 .json 檔案資訊的路徑
-	path := filepath.Join(basePath, req.AskId, req.AskContent.ProductSeries, req.AskContent.ApplicableProject)
-	if req.AskContent.CustomizeId != "" {
-		path = filepath.Join(path, "customize", req.AskContent.CustomizeId)
+	path := filepath.Join(basePath, req.AskId, req.ProductSeries, req.ApplicableProject)
+	if req.CustomizeId != "" {
+		path = filepath.Join(path, "customize", req.CustomizeId)
 	}
 
 	log.Printf("Searching for .json file in: %s", path)

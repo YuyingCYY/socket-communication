@@ -8,19 +8,14 @@ type Station struct {
 }
 
 type Request struct {
-	Command         string     `json:"command"`
-	TimeStampClient string     `json:"timeStampClient"`
-	AskId           string     `json:"askId"`
-	AskContent      AskContent `json:"askContent"`
-	IsGetBinFile    bool       `json:"isGetBinFile"`
-	Station         Station    `json:"station"`
-	MsgValidateCode string     `json:"msgValidateCode"`
-}
-
-type AskContent struct {
-	ProductSeries     string `json:"productSeries"`
-	ApplicableProject string `json:"applicableProject"`
-	CustomizeId       string `json:"customizeId"`
+	Command           string  `json:"command"`
+	TimeStampClient   string  `json:"timeStampClient"`
+	AskId             string  `json:"askId"`
+	ProductSeries     string  `json:"productSeries"`
+	ApplicableProject string  `json:"applicableProject"`
+	CustomizeId       string  `json:"customizeId"`
+	IsGetBinFile      bool    `json:"isGetBinFile"`
+	Station           Station `json:"station"`
 }
 
 type Response struct {
