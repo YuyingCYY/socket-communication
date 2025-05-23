@@ -77,6 +77,7 @@ typedef struct {
 import "C"
 import (
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -156,7 +157,7 @@ func CloseConnection() C.Status {
 }
 
 //export GetMainAppInfo
-func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.MainAppInfo {
+func GetMainAppInfo(productSeries, applicableProject, customizeId, fileName *C.char) C.MainAppInfo {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.MainAppInfo{
@@ -176,6 +177,7 @@ func GetMainAppInfo(productSeries, applicableProject, customizeId *C.char) C.Mai
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
+		FileName:          C.GoString(fileName),
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
@@ -262,7 +264,7 @@ func FreeMainAppInfo(info *C.MainAppInfo) {
 }
 
 //export GetParameterTableInfo
-func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char) C.ParameterTableInfo {
+func GetParameterTableInfo(productSeries, applicableProject, customizeId, fileName *C.char) C.ParameterTableInfo {
 	// 檢查是否已連線
 	if !client.GetClient().IsConnected() {
 		return C.ParameterTableInfo{
@@ -282,6 +284,7 @@ func GetParameterTableInfo(productSeries, applicableProject, customizeId *C.char
 		ProductSeries:     C.GoString(productSeries),
 		ApplicableProject: C.GoString(applicableProject),
 		CustomizeId:       C.GoString(customizeId),
+		FileName:          C.GoString(fileName),
 	}
 
 	decoder, err := client.GetClient().SendRequest(request)
@@ -462,7 +465,16 @@ func GetProductInfo(serialNumber *C.uint16_t) C.ProductInfo {
 	}
 	for i := range info.SysMatchInfo {
 		if i < len(cProductInfo.sysMatchInfo) {
-			cProductInfo.sysMatchInfo[i] = C.uint64_t(info.SysMatchInfo[i])
+			// 移除十六進制前綴 "0x"（如果有的話）
+			hexStr := strings.TrimPrefix(info.SysMatchInfo[i], "0x")
+			// 解析十六進制字串
+			val, err := strconv.ParseUint(hexStr, 16, 64)
+			if err != nil {
+				cProductInfo.status.errCode = C.int(models.ErrServerJSONMarshal)
+				cProductInfo.status.errDesc = C.CString("解析 SysMatchInfo 錯誤")
+				val = 0
+			}
+			cProductInfo.sysMatchInfo[i] = C.uint64_t(val)
 		}
 	}
 	return cProductInfo

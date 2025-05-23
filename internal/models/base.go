@@ -35,6 +35,7 @@ type Request struct {
 	OperatorId        string  `json:"operatorId"`
 	MsgValidateCode   string  `json:"msgValidateCode"`
 	SerialNumber      uint16  `json:"serialNumber"`
+	FileName          string  `json:"fileName"`
 }
 
 type Response struct {
