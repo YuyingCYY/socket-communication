@@ -243,25 +243,8 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 彙整並建立要存放到請求資料夾的Data
-	askContent := req.AskContent
-	var sourcePath string
-	if askContent.CustomizeId != "" {
-		sourcePath = fmt.Sprintf("\\%s\\%s\\customize\\%s", askContent.ProductSeries, askContent.ApplicableProject, askContent.CustomizeId)
-	} else {
-		sourcePath = fmt.Sprintf("\\%s\\%s", askContent.ProductSeries, askContent.ApplicableProject)
-	}
-	processReq := models.ProcessRequest{
-		TimeStamp:       req.TimeStampClient,
-		AskId:           req.AskId,
-		AskContent:      req.AskContent,
-		Station:         req.Station,
-		MsgValidateCode: req.MsgValidateCode,
-		SourcePath:      sourcePath,
-	}
-
 	// 將請求內容轉換成json
-	processReqData, err := json.Marshal(processReq)
+	jsonData, err := json.Marshal(req)
 	if err != nil {
 		log.Printf("[ERROR %d] Error marshaling request: %v", models.ErrServerJSONMarshal, err)
 		status := models.Status{
@@ -291,7 +274,7 @@ func ProcessMainAppRequest(req models.Request, basePath string) models.Response 
 
 	// 將 .json 檔案存放到指定請求資料夾
 	reqFilePath := filepath.Join(reqDirPath, fmt.Sprintf("%s.json", reqUUID))
-	err = os.WriteFile(reqFilePath, processReqData, 0644)
+	err = os.WriteFile(reqFilePath, jsonData, 0644)
 	if err != nil {
 		log.Printf("[ERROR %d] Error writing request file: %v", models.ErrServerWriteFile, err)
 		status := models.Status{
@@ -382,39 +365,14 @@ func monitorResponseFiles(ctx context.Context, jsonPath, binPath string, req mod
 
 			// 只有當兩個檔案都成功讀取才處理回應
 			if jsonData != nil && binData != nil {
-				// 先檢查 JSON 是否包含錯誤代碼
-				var status models.Status
+				var replyContent models.MainAppReplyContent
 
 				// 解析JSON內容
-				if err := json.Unmarshal(jsonData, &status); err != nil {
+				if err := json.Unmarshal(jsonData, &replyContent); err != nil {
 					log.Printf("[ERROR %d] Error unmarshaling JSON data: %v", models.ErrServerJSONUnmarshal, err)
 					status := models.Status{
 						Code:     models.ErrServerJSONUnmarshal,
 						ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data: %v", err),
-					}
-
-					resultCh <- models.Response{
-						Status: status,
-					}
-					return
-				}
-
-				// 檢查代碼是否為非零(錯誤)
-				if status.Code != 0 {
-					log.Printf("[ERROR %d] Server returned error: %s", status.Code, status.ErrorMsg)
-					resultCh <- models.Response{
-						Status: status,
-					}
-					return
-				}
-
-				// 若為 0 表示成功
-				var replyContent models.MainAppReplyContent
-				if err := json.Unmarshal(jsonData, &replyContent); err != nil {
-					log.Printf("[ERROR %d] Error unmarshaling JSON data into MainAppReplyContent: %v", models.ErrServerJSONUnmarshal, err)
-					status := models.Status{
-						Code:     models.ErrServerJSONUnmarshal,
-						ErrorMsg: fmt.Sprintf("Error unmarshaling JSON data into MainAppReplyContent: %v", err),
 					}
 
 					resultCh <- models.Response{
@@ -435,13 +393,13 @@ func monitorResponseFiles(ctx context.Context, jsonPath, binPath string, req mod
 					TimeStampClient: req.TimeStampClient,
 					TimeStampServer: strconv.FormatInt(time.Now().Unix(), 10),
 					ServerVersion:   "1.0.0",
+					ReplyStatus:     "success",
 					MsgValidateCode: "Msg",
 					ReplyContent:    replyContent,
 				}
 
 				resultCh <- models.Response{
 					MainAppInfo: mainAppResponse,
-					Status:      status,
 				}
 				return
 			} else {
